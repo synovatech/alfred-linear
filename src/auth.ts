@@ -22,7 +22,7 @@ export function readTokens(filePath = DEFAULT_AUTH_FILE): AuthTokens | null {
 }
 
 export function writeTokens(tokens: AuthTokens, filePath = DEFAULT_AUTH_FILE): void {
-  fs.writeFileSync(filePath, JSON.stringify(tokens, null, 2));
+  fs.writeFileSync(filePath, JSON.stringify(tokens, null, 2), { mode: 0o600 });
 }
 
 export function deleteTokens(filePath = DEFAULT_AUTH_FILE): void {
