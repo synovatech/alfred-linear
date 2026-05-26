@@ -80,6 +80,7 @@ export async function startOAuthFlow(clientId: string, filePath = DEFAULT_AUTH_F
       if (settled) return;
       settled = true;
       server.close();
+      server.closeAllConnections();
       fn();
     };
 
