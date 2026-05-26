@@ -190,18 +190,18 @@ Linear supports OAuth 2.0 PKCE for public clients (no client secret required).
 **Flow (`--auth` command):**
 
 1. Generate `code_verifier` (random 64-byte base64url string) and `code_challenge` (SHA-256 of verifier)
-2. Start a temporary local HTTP server on a random available port
+2. Start a temporary local HTTP server on port **49201** (fixed; see note below)
 3. Open browser to Linear's auth endpoint:
    ```
    https://linear.app/oauth/authorize
      ?client_id=<CLIENT_ID>
-     &redirect_uri=http://127.0.0.1:{port}/callback
+     &redirect_uri=http://localhost:49201/callback
      &response_type=code
      &scope=read,write,issues:create
      &code_challenge=<CHALLENGE>
      &code_challenge_method=S256
    ```
-4. User approves in browser → Linear redirects to `http://127.0.0.1:{port}/callback?code=...`
+4. User approves in browser → Linear redirects to `http://localhost:49201/callback?code=...`
 5. Local server catches the code, exchanges it for tokens at `/oauth/token`
 6. Writes `workflow-folder/auth.json`:
    ```json
@@ -219,6 +219,10 @@ Linear supports OAuth 2.0 PKCE for public clients (no client secret required).
 `linear.ts` checks `expires_at` before each API call. If within 5 minutes of expiry, it silently POSTs to `/oauth/token` with the refresh token and updates `auth.json`. If refresh fails (revoked), it deletes `auth.json` so the next invocation shows the setup item again.
 
 Access tokens expire after 24 hours; refresh tokens are long-lived.
+
+**Port choice rationale:**
+
+Port 49201 is fixed rather than random because the redirect URI must be declared when registering the OAuth application in Linear. It sits in the IANA dynamic/private range (49152–65535), has no well-known service association, and is specific enough to avoid collisions on a typical developer machine. `localhost` is used (not `127.0.0.1`) to ensure compatibility with both IPv4 and IPv6 loopback interfaces.
 
 ---
 
@@ -261,3 +265,4 @@ For developer setup (cloning the repo), a short `README.md` covers the additiona
 - Move issues through statuses
 - Assign issues to people
 - Full multi-step action menus (sub-results for a selected issue)
+- Custom workflow icon: Alfred's bowler hat composited over the Linear logo
