@@ -75,32 +75,45 @@ export async function startOAuthFlow(clientId: string, filePath = DEFAULT_AUTH_F
   const challenge = generateCodeChallenge(verifier);
 
   return new Promise((resolve, reject) => {
+    let settled = false;
+    const settle = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      server.close();
+      fn();
+    };
+
     const server = http.createServer(async (req, res) => {
       const url = new URL(req.url!, 'http://localhost');
+
+      if (url.pathname !== '/callback') {
+        res.writeHead(200);
+        res.end();
+        return;
+      }
+
       const code = url.searchParams.get('code');
 
       if (!code) {
         res.writeHead(400);
         res.end('Missing code parameter');
-        server.close();
-        reject(new Error('No code in OAuth callback'));
+        settle(() => reject(new Error('No code in OAuth callback')));
         return;
       }
 
       res.writeHead(200, { 'Content-Type': 'text/html' });
       res.end('<html><body><h1>Connected to Linear!</h1><p>You can close this tab.</p></body></html>');
-      server.close();
 
       try {
         const tokens = await exchangeCode(code, verifier, clientId);
         writeTokens(tokens, filePath);
-        resolve();
+        settle(resolve);
       } catch (err) {
-        reject(err);
+        settle(() => reject(err));
       }
     });
 
-    server.on('error', reject);
+    server.on('error', (err) => settle(() => reject(err)));
 
     server.listen(OAUTH_CALLBACK_PORT, 'localhost', () => {
       const authUrl = buildAuthUrl(clientId, challenge);
@@ -109,8 +122,7 @@ export async function startOAuthFlow(clientId: string, filePath = DEFAULT_AUTH_F
     });
 
     setTimeout(() => {
-      server.close();
-      reject(new Error('OAuth flow timed out after 5 minutes'));
+      settle(() => reject(new Error('OAuth flow timed out after 5 minutes')));
     }, 5 * 60 * 1000);
   });
 }
