@@ -35,7 +35,7 @@ export async function getIssueDetail(identifier: string): Promise<string> {
   if (children.length > 0) {
     lines.push('* **Sub-issues:**');
     for (const child of children) {
-      lines.push(`    * ${child.identifier}: ${child.title}`);
+      lines.push(`    * [${child.identifier}](${child.url}): ${child.title}`);
     }
   }
 
