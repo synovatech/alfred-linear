@@ -1,4 +1,5 @@
 import * as esbuild from 'esbuild';
+import { copyFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -15,3 +16,11 @@ await esbuild.build({
 });
 
 console.log('Built: workflow-folder/js/main.js');
+
+for (const file of ['info.plist', 'icon.png']) {
+  copyFileSync(
+    resolve(__dirname, 'workflow', file),
+    resolve(__dirname, 'workflow-folder', file),
+  );
+  console.log(`Copied: workflow/${file}`);
+}

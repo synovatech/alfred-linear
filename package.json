@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "build": "node build.mjs",
+    "sync": "cp workflow-folder/info.plist workflow/info.plist && cp workflow-folder/icon.png workflow/icon.png",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
