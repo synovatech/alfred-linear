@@ -73,6 +73,7 @@ export async function refreshTokens(
 export async function startOAuthFlow(clientId: string, filePath = DEFAULT_AUTH_FILE): Promise<void> {
   const verifier = generateCodeVerifier();
   const challenge = generateCodeChallenge(verifier);
+  const state = crypto.randomBytes(16).toString('base64url');
 
   return new Promise((resolve, reject) => {
     let settled = false;
@@ -90,6 +91,13 @@ export async function startOAuthFlow(clientId: string, filePath = DEFAULT_AUTH_F
       if (url.pathname !== '/callback') {
         res.writeHead(200);
         res.end();
+        return;
+      }
+
+      if (url.searchParams.get('state') !== state) {
+        res.writeHead(400);
+        res.end('Invalid state parameter');
+        settle(() => reject(new Error('OAuth state mismatch — possible CSRF attempt')));
         return;
       }
 
@@ -117,7 +125,7 @@ export async function startOAuthFlow(clientId: string, filePath = DEFAULT_AUTH_F
     server.on('error', (err) => settle(() => reject(err)));
 
     server.listen(OAUTH_CALLBACK_PORT, 'localhost', () => {
-      const authUrl = buildAuthUrl(clientId, challenge);
+      const authUrl = buildAuthUrl(clientId, challenge, state);
       exec(`open "${authUrl}"`);
       console.error(`Opening browser for Linear authorisation…`);
     });
@@ -128,7 +136,7 @@ export async function startOAuthFlow(clientId: string, filePath = DEFAULT_AUTH_F
   });
 }
 
-function buildAuthUrl(clientId: string, challenge: string): string {
+function buildAuthUrl(clientId: string, challenge: string, state: string): string {
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: `http://localhost:${OAUTH_CALLBACK_PORT}/callback`,
@@ -136,6 +144,7 @@ function buildAuthUrl(clientId: string, challenge: string): string {
     scope: OAUTH_SCOPES,
     code_challenge: challenge,
     code_challenge_method: 'S256',
+    state,
   });
   return `https://linear.app/oauth/authorize?${params}`;
 }

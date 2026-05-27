@@ -51,6 +51,25 @@ describe('parseQuery', () => {
   });
 });
 
+describe('runMain (--detail / --create unauthenticated)', () => {
+  it('--detail writes a markdown message when not authenticated', async () => {
+    vi.mocked(readTokens).mockReturnValue(null);
+    const written: string[] = [];
+    const spy = vi.spyOn(process.stdout, 'write').mockImplementation((d) => { written.push(String(d)); return true; });
+    await runMain(['--detail', 'KIN-1']);
+    spy.mockRestore();
+    expect(written.join('')).toContain('Not connected');
+    expect(getIssueDetail).not.toHaveBeenCalled();
+  });
+
+  it('--create outputs setup item when not authenticated', async () => {
+    vi.mocked(readTokens).mockReturnValue(null);
+    await runMain(['--create', 'create::KIN::title']);
+    expect(alfredOutput).toHaveBeenCalledWith([makeSetupItem()]);
+    expect(createIssue).not.toHaveBeenCalled();
+  });
+});
+
 describe('runMain (script filter mode)', () => {
   it('outputs setup item when not authenticated', async () => {
     vi.mocked(readTokens).mockReturnValue(null);

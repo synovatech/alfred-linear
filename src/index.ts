@@ -31,12 +31,20 @@ export async function runMain(args: string[]): Promise<void> {
   }
 
   if (args[0] === '--detail') {
+    if (!readTokens()) {
+      process.stdout.write('# Not connected to Linear\n\nType `lin setup::auth` in Alfred to connect your account.');
+      return;
+    }
     const md = await getIssueDetail(args[1]);
     process.stdout.write(md);
     return;
   }
 
   if (args[0] === '--create') {
+    if (!readTokens()) {
+      alfredOutput([makeSetupItem()]);
+      return;
+    }
     const url = await createIssue(args[1]);
     process.stdout.write(url);
     return;

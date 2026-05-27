@@ -64,8 +64,8 @@ describe('getIssueDetail', () => {
     const issue = makeMockIssue({
       children: vi.fn().mockResolvedValue({
         nodes: [
-          { identifier: 'KIN-2', title: 'Sub task one' },
-          { identifier: 'KIN-3', title: 'Sub task two' },
+          { identifier: 'KIN-2', title: 'Sub task one', url: 'https://linear.app/kindred/issue/KIN-2' },
+          { identifier: 'KIN-3', title: 'Sub task two', url: 'https://linear.app/kindred/issue/KIN-3' },
         ],
       }),
     });
@@ -74,8 +74,10 @@ describe('getIssueDetail', () => {
     } as any);
     const md = await getIssueDetail('KIN-1');
     expect(md).toContain('Sub-issues');
-    expect(md).toContain('KIN-2: Sub task one');
-    expect(md).toContain('KIN-3: Sub task two');
+    expect(md).toContain('[KIN-2]');
+    expect(md).toContain('Sub task one');
+    expect(md).toContain('[KIN-3]');
+    expect(md).toContain('Sub task two');
   });
 
   it('omits sub-issues section when empty', async () => {
