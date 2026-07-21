@@ -1,49 +1,54 @@
 import { readTokens, startOAuthFlow } from './auth';
 import { getIssueDetail } from './commands/detail';
 import { createIssue } from './commands/create';
-import { searchIssues } from './commands/search';
+import { searchIssues, listIssues } from './commands/search';
+import { fetchTeams, fetchProjects } from './commands/lookups';
 import {
   alfredOutput,
   makeSetupItem,
   makeCreatePreviewItem,
   makeEmptyQueryItem,
-  makeSmartOptionItem,
+  makeOptionPickerItem,
+  makeTeamItem,
+  makeProjectItem,
+  makePriorityItem,
   makeNoSmartOptionItem,
+  type AlfredItem,
 } from './alfred';
 import { LINEAR_CLIENT_ID } from './config';
-import { SMART_OPTIONS, matchSmartOptions } from './smartOptions';
+import { parseQuery, type ParsedQuery } from './query';
+import { optionsByPrefix, PRIORITY_CHOICES } from './smartOptions';
 
-type ParsedQuery =
-  | { mode: 'search'; query: string; includeAll: boolean }
-  | { mode: 'create'; team: string; title: string }
-  | { mode: 'smartOptions'; partial: string }
-  | { mode: 'empty' };
+export { parseQuery } from './query';
 
-export function parseQuery(raw: string): ParsedQuery {
-  const q = raw.trim();
-  if (!q) return { mode: 'empty' };
+function noMatch(label: string): AlfredItem {
+  return { title: `No matching ${label}`, subtitle: 'Keep typing or change your filters', valid: false };
+}
 
-  const createMatch = q.match(/^\+([A-Z]{2,5})\s+(.+)$/);
-  if (createMatch) return { mode: 'create', team: createMatch[1], title: createMatch[2] };
+async function outputSuggestions(p: Extract<ParsedQuery, { mode: 'suggest' }>): Promise<void> {
+  const { source, partial, prefix } = p;
 
-  if (q.startsWith(':')) {
-    const spaceIdx = q.search(/\s/);
-    // No space yet → still picking a smart option; let the caller offer matches.
-    if (spaceIdx === -1) return { mode: 'smartOptions', partial: q.slice(1) };
-
-    const token = q.slice(1, spaceIdx).toLowerCase();
-    const term = q.slice(spaceIdx + 1).trim();
-    // A bare token with no term never reaches here — trim() removes the
-    // trailing space, so it parses as picker mode above.
-    const known = SMART_OPTIONS.find((o) => o.token === token);
-    if (known) {
-      // Only 'all' (bypass the active-state filter) exists today.
-      return { mode: 'search', query: term, includeAll: known.token === 'all' };
-    }
-    // Unknown token + a space → treat the whole thing as a literal search.
+  if (source === 'options') {
+    const matches = optionsByPrefix(partial);
+    alfredOutput(matches.length > 0 ? matches.map((o) => makeOptionPickerItem(o, prefix)) : [makeNoSmartOptionItem(partial)]);
+    return;
   }
 
-  return { mode: 'search', query: q, includeAll: false };
+  if (source === 'priority') {
+    const pl = partial.toLowerCase();
+    const choices = PRIORITY_CHOICES.filter((c) => c.label.toLowerCase().startsWith(pl));
+    alfredOutput(choices.length > 0 ? choices.map((c) => makePriorityItem(c, prefix)) : [noMatch('priority')]);
+    return;
+  }
+
+  if (source === 'teams') {
+    const teams = await fetchTeams(partial);
+    alfredOutput(teams.length > 0 ? teams.map((t) => makeTeamItem(t, prefix)) : [noMatch('team')]);
+    return;
+  }
+
+  const projects = await fetchProjects(partial, p.teamKey);
+  alfredOutput(projects.length > 0 ? projects.map((pr) => makeProjectItem(pr, prefix)) : [noMatch('project')]);
 }
 
 export async function runMain(args: string[]): Promise<void> {
@@ -81,28 +86,23 @@ export async function runMain(args: string[]): Promise<void> {
 
   const parsed = parseQuery(args[0] ?? '');
 
-  if (parsed.mode === 'empty') {
-    alfredOutput([makeEmptyQueryItem()]);
-    return;
+  switch (parsed.mode) {
+    case 'empty':
+      alfredOutput([makeEmptyQueryItem()]);
+      return;
+    case 'create':
+      alfredOutput([makeCreatePreviewItem(parsed.team, parsed.title)]);
+      return;
+    case 'suggest':
+      await outputSuggestions(parsed);
+      return;
+    case 'search':
+      alfredOutput(await searchIssues(parsed.term, parsed.filter));
+      return;
+    case 'list':
+      alfredOutput(await listIssues(parsed.filter));
+      return;
   }
-
-  if (parsed.mode === 'create') {
-    alfredOutput([makeCreatePreviewItem(parsed.team, parsed.title)]);
-    return;
-  }
-
-  if (parsed.mode === 'smartOptions') {
-    const matches = matchSmartOptions(parsed.partial);
-    alfredOutput(
-      matches.length > 0
-        ? matches.map(makeSmartOptionItem)
-        : [makeNoSmartOptionItem(parsed.partial)],
-    );
-    return;
-  }
-
-  const items = await searchIssues(parsed.query, parsed.includeAll);
-  alfredOutput(items);
 }
 
 if (require.main === module) {

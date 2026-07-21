@@ -4,10 +4,14 @@ import {
   makeSetupItem,
   makeCreatePreviewItem,
   makeEmptyQueryItem,
-  makeSmartOptionItem,
+  makeOptionPickerItem,
+  makeTeamItem,
+  makeProjectItem,
+  makePriorityItem,
   makeNoSmartOptionItem,
   alfredOutput,
 } from '../src/alfred';
+import { resolveOption } from '../src/smartOptions';
 
 describe('makeSearchItem', () => {
   const issue = {
@@ -85,23 +89,48 @@ describe('makeEmptyQueryItem', () => {
   });
 });
 
-describe('makeSmartOptionItem', () => {
-  const option = { token: 'all', subtitle: 'Search all tickets' };
-
-  it('titles the item with the colon-prefixed token', () => {
-    expect(makeSmartOptionItem(option).title).toBe(':all');
+describe('makeOptionPickerItem', () => {
+  it('renders a flag option: :token title, prefix-preserving autocomplete, non-actionable', () => {
+    const item = makeOptionPickerItem(resolveOption('mine')!, '');
+    expect(item.title).toBe(':mine');
+    expect(item.autocomplete).toBe(':mine ');
+    expect(item.valid).toBe(false);
+    expect(item.subtitle).toContain('assigned to me');
   });
 
-  it('carries the registry subtitle', () => {
-    expect(makeSmartOptionItem(option).subtitle).toBe('Search all tickets');
+  it('shows the arg hint for an arg option and preserves an existing prefix', () => {
+    const item = makeOptionPickerItem(resolveOption('team')!, ':mine ');
+    expect(item.title).toBe(':team');
+    expect(item.subtitle).toContain('KEY');
+    expect(item.autocomplete).toBe(':mine :team ');
   });
+});
 
-  it('autocompletes to the token plus a trailing space so the user keeps typing', () => {
-    expect(makeSmartOptionItem(option).autocomplete).toBe(':all ');
+describe('makeTeamItem', () => {
+  it('shows key + name and autocompletes the whole chain', () => {
+    const item = makeTeamItem({ key: 'ENG', name: 'Engineering' }, ':mine ');
+    expect(item.title).toBe('ENG');
+    expect(item.subtitle).toBe('Engineering');
+    expect(item.autocomplete).toBe(':mine :team ENG ');
+    expect(item.valid).toBe(false);
   });
+});
 
-  it('is not actionable on its own (Tab-complete only, no Enter)', () => {
-    expect(makeSmartOptionItem(option).valid).toBe(false);
+describe('makeProjectItem', () => {
+  it('quotes the project name in the autocomplete, carrying the team prefix', () => {
+    const item = makeProjectItem({ name: 'Mobile App Q3' }, ':team ENG ');
+    expect(item.title).toBe('Mobile App Q3');
+    expect(item.autocomplete).toBe(':team ENG :project "Mobile App Q3" ');
+    expect(item.valid).toBe(false);
+  });
+});
+
+describe('makePriorityItem', () => {
+  it('titles the level and autocompletes the token', () => {
+    const item = makePriorityItem({ label: 'High', value: 2 }, '');
+    expect(item.title).toBe('High');
+    expect(item.autocomplete).toBe(':priority High ');
+    expect(item.valid).toBe(false);
   });
 });
 

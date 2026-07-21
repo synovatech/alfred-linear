@@ -66,13 +66,53 @@ export function makeEmptyQueryItem(): AlfredItem {
   };
 }
 
-export function makeSmartOptionItem(option: { token: string; subtitle: string }): AlfredItem {
+// Non-actionable suggestion items. `prefix` is the canonical string of the
+// modifiers already chosen; each item's autocomplete rebuilds the whole chain
+// so earlier filters survive a Tab-completion. Trailing space on the
+// autocomplete leaves the cursor ready for the next token.
+
+export function makeOptionPickerItem(
+  option: { kind: 'flag' | 'arg'; token: string; subtitle: string; argHint?: string },
+  prefix: string,
+): AlfredItem {
+  const subtitle = option.kind === 'arg' && option.argHint
+    ? `${option.subtitle} (${option.argHint})`
+    : option.subtitle;
   return {
     uid: `smart-${option.token}`,
     title: `:${option.token}`,
-    subtitle: option.subtitle,
-    // Trailing space so Tab leaves the cursor ready to type the search term.
-    autocomplete: `:${option.token} `,
+    subtitle,
+    autocomplete: `${prefix}:${option.token} `,
+    valid: false,
+  };
+}
+
+export function makeTeamItem(team: { key: string; name: string }, prefix: string): AlfredItem {
+  return {
+    uid: `team-${team.key}`,
+    title: team.key,
+    subtitle: team.name,
+    autocomplete: `${prefix}:team ${team.key} `,
+    valid: false,
+  };
+}
+
+export function makeProjectItem(project: { name: string }, prefix: string): AlfredItem {
+  return {
+    uid: `project-${project.name}`,
+    title: project.name,
+    subtitle: 'Project',
+    autocomplete: `${prefix}:project "${project.name}" `,
+    valid: false,
+  };
+}
+
+export function makePriorityItem(choice: { label: string; value: number }, prefix: string): AlfredItem {
+  return {
+    uid: `priority-${choice.value}`,
+    title: choice.label,
+    subtitle: `Priority: ${choice.label}`,
+    autocomplete: `${prefix}:priority ${choice.label} `,
     valid: false,
   };
 }

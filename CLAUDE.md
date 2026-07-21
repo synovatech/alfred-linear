@@ -47,15 +47,29 @@ Errors in `--detail` must be plain text (shown in Text View). Errors in `--creat
 
 ## Search syntax & smart options
 
-Default search is **active-only**: it applies `ACTIVE_STATE_FILTER` (`src/smartOptions.ts`), which filters on the meta-state `state.type` — `in: ['triage','backlog','unstarted','started']`. This excludes the `completed`, `canceled`, and `duplicate` types. A positive `in` list is used deliberately (`type` is a fixed enum, and a negative filter would wrongly let `duplicate` through).
+Default search is **active-only**: it applies `ACTIVE_STATE_FILTER` (`src/smartOptions.ts`), a filter on the meta-state `state.type` — `in: ['triage','backlog','unstarted','started']` (see `ACTIVE_STATE_TYPES`). This excludes `completed`, `canceled`, and `duplicate`. A positive `in` list is deliberate: `type` is a fixed enum, and a negative filter would wrongly let `duplicate` through.
 
-A `:`-prefixed **smart-option** namespace overrides/extends the search. Adding a new option is one entry in the `SMART_OPTIONS` registry (`src/smartOptions.ts`) plus its behaviour in `parseQuery`:
+A `:`-prefixed **smart-option** namespace composes filters. Options chain left-to-right before the free-text term; all combine with AND.
 
-- `:all <term>` — search every state (filter omitted). Only option today.
-- Typing `:` (or a partial like `:a`) with **no space yet** enters *picker* mode: the Script Filter lists matching options as non-actionable items (`valid:false`) with an `autocomplete` of `:<token> ` so Tab completes them. No match → a single "No smart option matches" item.
-- The picker distinction is "no whitespace in the trimmed query" — trailing spaces are unreliable in Alfred, so `:all` and `:all ` both stay in the picker; only `:all <term>` searches.
+| Option | Kind | Filter |
+|---|---|---|
+| `:all` | flag | clears the state filter (every state) |
+| `:done` | flag | `state.type eq completed` |
+| `:mine` | flag | `assignee.isMe eq true` |
+| `:team <KEY>` | arg | `team.key eq KEY` — arg autocompleted from live teams |
+| `:project "<Name>"` | arg | `project.name eq Name` — arg autocompleted from live projects, scoped to a `:team` chosen earlier |
+| `:priority <Level>` | arg | `priority eq N` — static picker (Urgent/High/Medium/Low/None → 1/2/3/4/0) |
 
-This is handled entirely inside the Script Filter (main.js) — no `info.plist` routing is involved (smart-option items are `valid:false`, so only Tab-complete works, never Enter).
+State options (`:all`, `:done`, default) are one dimension — last in the chain wins. Adding an option = one entry in `SMART_OPTIONS`; a new async arg source also needs a fetcher in `commands/lookups.ts` and an item builder in `alfred.ts`.
+
+**Trailing space is the "token complete" signal** (standard Alfred multi-arg pattern). Token abbreviations resolve by **unique prefix** (`:proj`→project; `:p`/`:pr` are ambiguous with priority→picker). Behaviour:
+- `:` / `:pro` (no trailing space) → option picker (`valid:false` items whose `autocomplete` rebuilds the whole chain + `:token `).
+- `:team ` / `:team EN` → team suggestions; `:team ENG :proj ` → ENG-scoped project suggestions.
+- `:priority ` → the five static levels.
+- `:mine ` / `:team ENG ` (filters, **no free-text term**) → **list mode**: `client.issues({filter, orderBy: UpdatedAt})` (browse), not full-text search.
+- `<filters> <term>` → `searchIssues(term, filter)`.
+
+Split across `src/query.ts` (pure tokenizer + `parseQuery` + `assembleFilter`), `src/smartOptions.ts` (registry), `src/commands/lookups.ts` (team/project fetch). All handled inside the Script Filter (main.js) — no `info.plist` routing (suggestion items are `valid:false`; only Tab-complete, never Enter).
 
 ## Alfred workflow wiring (info.plist)
 
@@ -102,8 +116,7 @@ These were either listed in the original design spec as future phases, or surfac
 - Add a comment to an issue
 
 ### Richer search and navigation
-- Filter search by team, project, assignee, status, or label
-  - Status/state filtering is **done**: default search is active-only, `:all` shows every state. Extend via the `SMART_OPTIONS` registry — e.g. `:mine`, `:done`, `:team ENG` — each adds a filter and shows up in the `:` autocomplete picker for free.
+- ~~Filter search by team, project, assignee, status, or label~~ **Done** (except label): `:all`/`:done` (status), `:mine` (assignee), `:team KEY`, `:project "Name"`, `:priority Level`, composable, with live autocomplete. Add more via the `SMART_OPTIONS` registry — a new flag is one entry; a new async arg source also needs a `commands/lookups.ts` fetcher + `alfred.ts` item builder. `:label` is the obvious next one.
 - Search for projects and display their issues
 - Browse by team → project → issues
 - List views / custom views and browse their contents

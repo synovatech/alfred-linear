@@ -1,22 +1,14 @@
+import { PaginationOrderBy } from '@linear/sdk';
 import { getClient } from '../linear';
 import { makeSearchItem, type AlfredItem, type IssueShape } from '../alfred';
-import { ACTIVE_STATE_FILTER } from '../smartOptions';
+import type { IssueFilterInput } from '../smartOptions';
 
-export async function searchIssues(query: string, includeAll = false): Promise<AlfredItem[]> {
-  const client = await getClient();
-  const result = await client.searchIssues(query, {
-    first: 10,
-    ...(includeAll ? {} : { filter: ACTIVE_STATE_FILTER }),
-  });
-
-  if (result.nodes.length === 0) {
-    return [{ title: `No results for "${query}"`, subtitle: 'Try a different search term', valid: false }];
-  }
-
-  const isSingle = result.nodes.length === 1;
-
+// Shape the SDK issue nodes shared by full-text search and filter browsing.
+async function toItems(nodes: any[], emptyMessage: AlfredItem): Promise<AlfredItem[]> {
+  if (nodes.length === 0) return [emptyMessage];
+  const isSingle = nodes.length === 1;
   return Promise.all(
-    result.nodes.map(async (issue) => {
+    nodes.map(async (issue) => {
       const [state, assignee] = await Promise.all([issue.state, issue.assignee]);
       const shape: IssueShape = {
         id: issue.id,
@@ -31,4 +23,24 @@ export async function searchIssues(query: string, includeAll = false): Promise<A
       return makeSearchItem(shape, isSingle);
     }),
   );
+}
+
+export async function searchIssues(query: string, filter?: IssueFilterInput): Promise<AlfredItem[]> {
+  const client = await getClient();
+  const result = await client.searchIssues(query, { first: 10, filter } as any);
+  return toItems(result.nodes, {
+    title: `No results for "${query}"`,
+    subtitle: 'Try a different search term',
+    valid: false,
+  });
+}
+
+export async function listIssues(filter: IssueFilterInput): Promise<AlfredItem[]> {
+  const client = await getClient();
+  const result = await client.issues({ first: 10, filter, orderBy: PaginationOrderBy.UpdatedAt } as any);
+  return toItems(result.nodes, {
+    title: 'No matching issues',
+    subtitle: 'Adjust your filters',
+    valid: false,
+  });
 }

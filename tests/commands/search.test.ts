@@ -1,10 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { PaginationOrderBy } from '@linear/sdk';
 
 vi.mock('../../src/linear', () => ({ getClient: vi.fn() }));
 
 import { getClient } from '../../src/linear';
-import { searchIssues } from '../../src/commands/search';
+import { searchIssues, listIssues } from '../../src/commands/search';
 import type { AlfredItem } from '../../src/alfred';
+
+const ACTIVE = { state: { type: { in: ['triage', 'backlog', 'unstarted', 'started'] } } };
 
 function makeMockIssue(overrides = {}) {
   return {
@@ -62,20 +65,34 @@ describe('searchIssues', () => {
     expect(items[0].subtitle).toContain('In Progress');
   });
 
-  it('applies the active-state filter by default', async () => {
+  it('passes the assembled filter through to the SDK', async () => {
     const searchSpy = vi.fn().mockResolvedValue({ nodes: [makeMockIssue()] });
     vi.mocked(getClient).mockResolvedValue({ searchIssues: searchSpy } as any);
-    await searchIssues('auth');
-    expect(searchSpy).toHaveBeenCalledWith('auth', {
-      first: 10,
-      filter: { state: { type: { in: ['triage', 'backlog', 'unstarted', 'started'] } } },
-    });
+    await searchIssues('auth', ACTIVE);
+    expect(searchSpy).toHaveBeenCalledWith('auth', { first: 10, filter: ACTIVE });
   });
 
-  it('omits the filter when includeAll is true', async () => {
+  it('passes an empty filter through unchanged (e.g. :all)', async () => {
     const searchSpy = vi.fn().mockResolvedValue({ nodes: [makeMockIssue()] });
     vi.mocked(getClient).mockResolvedValue({ searchIssues: searchSpy } as any);
-    await searchIssues('auth', true);
-    expect(searchSpy).toHaveBeenCalledWith('auth', { first: 10 });
+    await searchIssues('auth', {});
+    expect(searchSpy).toHaveBeenCalledWith('auth', { first: 10, filter: {} });
+  });
+});
+
+describe('listIssues', () => {
+  it('queries issues by filter, newest first, and maps to items', async () => {
+    const issuesSpy = vi.fn().mockResolvedValue({ nodes: [makeMockIssue(), makeMockIssue({ identifier: 'KIN-2', id: 'def' })] });
+    vi.mocked(getClient).mockResolvedValue({ issues: issuesSpy } as any);
+    const items = await listIssues(ACTIVE);
+    expect(items).toHaveLength(2);
+    expect(issuesSpy).toHaveBeenCalledWith({ first: 10, filter: ACTIVE, orderBy: PaginationOrderBy.UpdatedAt });
+  });
+
+  it('returns an empty-result item when nothing matches', async () => {
+    vi.mocked(getClient).mockResolvedValue({ issues: vi.fn().mockResolvedValue({ nodes: [] }) } as any);
+    const items = await listIssues(ACTIVE);
+    expect(items).toHaveLength(1);
+    expect(items[0].valid).toBe(false);
   });
 });
