@@ -4,6 +4,7 @@ export interface AlfredItem {
   subtitle?: string;
   arg?: string;
   valid?: boolean;
+  autocomplete?: string;
   variables?: Record<string, string>;
   match?: string;
   icon?: { path?: string; type?: string };
@@ -61,6 +62,25 @@ export function makeEmptyQueryItem(): AlfredItem {
   return {
     title: 'Search Linear issues…',
     subtitle: 'Type a search term',
+    valid: false,
+  };
+}
+
+export function makeSmartOptionItem(option: { token: string; subtitle: string }): AlfredItem {
+  return {
+    uid: `smart-${option.token}`,
+    title: `:${option.token}`,
+    subtitle: option.subtitle,
+    // Trailing space so Tab leaves the cursor ready to type the search term.
+    autocomplete: `:${option.token} `,
+    valid: false,
+  };
+}
+
+export function makeNoSmartOptionItem(partial: string): AlfredItem {
+  return {
+    title: `No smart option matches “:${partial}”`,
+    subtitle: 'Remove the colon to search, or keep typing',
     valid: false,
   };
 }

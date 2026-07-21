@@ -4,6 +4,8 @@ import {
   makeSetupItem,
   makeCreatePreviewItem,
   makeEmptyQueryItem,
+  makeSmartOptionItem,
+  makeNoSmartOptionItem,
   alfredOutput,
 } from '../src/alfred';
 
@@ -79,6 +81,34 @@ describe('makeCreatePreviewItem', () => {
 describe('makeEmptyQueryItem', () => {
   it('returns a non-actionable prompt item', () => {
     const item = makeEmptyQueryItem();
+    expect(item.valid).toBe(false);
+  });
+});
+
+describe('makeSmartOptionItem', () => {
+  const option = { token: 'all', subtitle: 'Search all tickets' };
+
+  it('titles the item with the colon-prefixed token', () => {
+    expect(makeSmartOptionItem(option).title).toBe(':all');
+  });
+
+  it('carries the registry subtitle', () => {
+    expect(makeSmartOptionItem(option).subtitle).toBe('Search all tickets');
+  });
+
+  it('autocompletes to the token plus a trailing space so the user keeps typing', () => {
+    expect(makeSmartOptionItem(option).autocomplete).toBe(':all ');
+  });
+
+  it('is not actionable on its own (Tab-complete only, no Enter)', () => {
+    expect(makeSmartOptionItem(option).valid).toBe(false);
+  });
+});
+
+describe('makeNoSmartOptionItem', () => {
+  it('names the unmatched partial and is non-actionable', () => {
+    const item = makeNoSmartOptionItem('zzz');
+    expect(item.title).toContain('zzz');
     expect(item.valid).toBe(false);
   });
 });

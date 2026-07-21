@@ -61,4 +61,21 @@ describe('searchIssues', () => {
     expect(items[0].subtitle).not.toContain('JWT token');
     expect(items[0].subtitle).toContain('In Progress');
   });
+
+  it('applies the active-state filter by default', async () => {
+    const searchSpy = vi.fn().mockResolvedValue({ nodes: [makeMockIssue()] });
+    vi.mocked(getClient).mockResolvedValue({ searchIssues: searchSpy } as any);
+    await searchIssues('auth');
+    expect(searchSpy).toHaveBeenCalledWith('auth', {
+      first: 10,
+      filter: { state: { type: { in: ['triage', 'backlog', 'unstarted', 'started'] } } },
+    });
+  });
+
+  it('omits the filter when includeAll is true', async () => {
+    const searchSpy = vi.fn().mockResolvedValue({ nodes: [makeMockIssue()] });
+    vi.mocked(getClient).mockResolvedValue({ searchIssues: searchSpy } as any);
+    await searchIssues('auth', true);
+    expect(searchSpy).toHaveBeenCalledWith('auth', { first: 10 });
+  });
 });

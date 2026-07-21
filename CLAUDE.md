@@ -45,6 +45,18 @@ workflow-folder/    Symlink → Alfred.alfredpreferences/workflows/user.workflow
 
 Errors in `--detail` must be plain text (shown in Text View). Errors in `--create` have no good outlet — they surface as a garbled URL attempt. The Script Filter catch-all uses `alfredOutput`.
 
+## Search syntax & smart options
+
+Default search is **active-only**: it applies `ACTIVE_STATE_FILTER` (`src/smartOptions.ts`), which filters on the meta-state `state.type` — `in: ['triage','backlog','unstarted','started']`. This excludes the `completed`, `canceled`, and `duplicate` types. A positive `in` list is used deliberately (`type` is a fixed enum, and a negative filter would wrongly let `duplicate` through).
+
+A `:`-prefixed **smart-option** namespace overrides/extends the search. Adding a new option is one entry in the `SMART_OPTIONS` registry (`src/smartOptions.ts`) plus its behaviour in `parseQuery`:
+
+- `:all <term>` — search every state (filter omitted). Only option today.
+- Typing `:` (or a partial like `:a`) with **no space yet** enters *picker* mode: the Script Filter lists matching options as non-actionable items (`valid:false`) with an `autocomplete` of `:<token> ` so Tab completes them. No match → a single "No smart option matches" item.
+- The picker distinction is "no whitespace in the trimmed query" — trailing spaces are unreliable in Alfred, so `:all` and `:all ` both stay in the picker; only `:all <term>` searches.
+
+This is handled entirely inside the Script Filter (main.js) — no `info.plist` routing is involved (smart-option items are `valid:false`, so only Tab-complete works, never Enter).
+
 ## Alfred workflow wiring (info.plist)
 
 The Conditional uses `matchmode: 6` (ICU regex) with patterns `^setup::` and `^create::`. Else branch routes to detail.
@@ -91,6 +103,7 @@ These were either listed in the original design spec as future phases, or surfac
 
 ### Richer search and navigation
 - Filter search by team, project, assignee, status, or label
+  - Status/state filtering is **done**: default search is active-only, `:all` shows every state. Extend via the `SMART_OPTIONS` registry — e.g. `:mine`, `:done`, `:team ENG` — each adds a filter and shows up in the `:` autocomplete picker for free.
 - Search for projects and display their issues
 - Browse by team → project → issues
 - List views / custom views and browse their contents

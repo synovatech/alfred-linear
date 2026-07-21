@@ -1,9 +1,13 @@
 import { getClient } from '../linear';
 import { makeSearchItem, type AlfredItem, type IssueShape } from '../alfred';
+import { ACTIVE_STATE_FILTER } from '../smartOptions';
 
-export async function searchIssues(query: string): Promise<AlfredItem[]> {
+export async function searchIssues(query: string, includeAll = false): Promise<AlfredItem[]> {
   const client = await getClient();
-  const result = await client.searchIssues(query, { first: 10 });
+  const result = await client.searchIssues(query, {
+    first: 10,
+    ...(includeAll ? {} : { filter: ACTIVE_STATE_FILTER }),
+  });
 
   if (result.nodes.length === 0) {
     return [{ title: `No results for "${query}"`, subtitle: 'Try a different search term', valid: false }];
