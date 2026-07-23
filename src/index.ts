@@ -1,26 +1,66 @@
 import { readTokens, startOAuthFlow } from './auth';
 import { getIssueDetail } from './commands/detail';
 import { createIssue } from './commands/create';
-import { searchIssues } from './commands/search';
+import { searchIssues, listIssues } from './commands/search';
+import { fetchTeams, fetchProjects } from './commands/lookups';
 import {
   alfredOutput,
   makeSetupItem,
   makeCreatePreviewItem,
   makeEmptyQueryItem,
+  makeOptionPickerItem,
+  makeTeamItem,
+  makeProjectItem,
+  makePriorityItem,
+  makeDueItem,
+  makeInfoItem,
+  makeNoSmartOptionItem,
+  type AlfredItem,
 } from './alfred';
 import { LINEAR_CLIENT_ID } from './config';
+import { parseQuery, type ParsedQuery } from './query';
+import { optionsByPrefix, PRIORITY_CHOICES } from './smartOptions';
+import { DUE_KEYWORDS } from './dueDate';
 
-type ParsedQuery =
-  | { mode: 'search'; query: string }
-  | { mode: 'create'; team: string; title: string }
-  | { mode: 'empty' };
+const DUE_FORMAT_HINT = makeInfoItem('Or type a date', 'e.g. 2026-07-01, 01-07-2026, <2026-07-01, 20260701');
 
-export function parseQuery(raw: string): ParsedQuery {
-  const q = raw.trim();
-  if (!q) return { mode: 'empty' };
-  const createMatch = q.match(/^\+([A-Z]{2,5})\s+(.+)$/);
-  if (createMatch) return { mode: 'create', team: createMatch[1], title: createMatch[2] };
-  return { mode: 'search', query: q };
+export { parseQuery } from './query';
+
+function noMatch(label: string): AlfredItem {
+  return { title: `No matching ${label}`, subtitle: 'Keep typing or change your filters', valid: false };
+}
+
+async function outputSuggestions(p: Extract<ParsedQuery, { mode: 'suggest' }>): Promise<void> {
+  const { source, partial, prefix } = p;
+
+  if (source === 'options') {
+    const matches = optionsByPrefix(partial);
+    alfredOutput(matches.length > 0 ? matches.map((o) => makeOptionPickerItem(o, prefix)) : [makeNoSmartOptionItem(partial)]);
+    return;
+  }
+
+  if (source === 'priority') {
+    const pl = partial.toLowerCase();
+    const choices = PRIORITY_CHOICES.filter((c) => c.label.toLowerCase().startsWith(pl));
+    alfredOutput(choices.length > 0 ? choices.map((c) => makePriorityItem(c, prefix)) : [noMatch('priority')]);
+    return;
+  }
+
+  if (source === 'due') {
+    const pl = partial.toLowerCase();
+    const matches = DUE_KEYWORDS.filter((k) => k.token.startsWith(pl));
+    alfredOutput([...matches.map((k) => makeDueItem(k, prefix)), DUE_FORMAT_HINT]);
+    return;
+  }
+
+  if (source === 'teams') {
+    const teams = await fetchTeams(partial);
+    alfredOutput(teams.length > 0 ? teams.map((t) => makeTeamItem(t, prefix)) : [noMatch('team')]);
+    return;
+  }
+
+  const projects = await fetchProjects(partial, p.teamKey);
+  alfredOutput(projects.length > 0 ? projects.map((pr) => makeProjectItem(pr, prefix)) : [noMatch('project')]);
 }
 
 export async function runMain(args: string[]): Promise<void> {
@@ -58,18 +98,26 @@ export async function runMain(args: string[]): Promise<void> {
 
   const parsed = parseQuery(args[0] ?? '');
 
-  if (parsed.mode === 'empty') {
-    alfredOutput([makeEmptyQueryItem()]);
-    return;
+  switch (parsed.mode) {
+    case 'empty':
+      alfredOutput([makeEmptyQueryItem()]);
+      return;
+    case 'create':
+      alfredOutput([makeCreatePreviewItem(parsed.team, parsed.title)]);
+      return;
+    case 'suggest':
+      await outputSuggestions(parsed);
+      return;
+    case 'error':
+      alfredOutput([makeInfoItem(parsed.message, 'Try 2026-07-01, <2026-07-01, or a keyword like overdue')]);
+      return;
+    case 'search':
+      alfredOutput(await searchIssues(parsed.term, parsed.filter));
+      return;
+    case 'list':
+      alfredOutput(await listIssues(parsed.filter));
+      return;
   }
-
-  if (parsed.mode === 'create') {
-    alfredOutput([makeCreatePreviewItem(parsed.team, parsed.title)]);
-    return;
-  }
-
-  const items = await searchIssues(parsed.query);
-  alfredOutput(items);
 }
 
 if (require.main === module) {

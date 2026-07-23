@@ -4,8 +4,16 @@ import {
   makeSetupItem,
   makeCreatePreviewItem,
   makeEmptyQueryItem,
+  makeOptionPickerItem,
+  makeTeamItem,
+  makeProjectItem,
+  makePriorityItem,
+  makeDueItem,
+  makeInfoItem,
+  makeNoSmartOptionItem,
   alfredOutput,
 } from '../src/alfred';
+import { resolveOption } from '../src/smartOptions';
 
 describe('makeSearchItem', () => {
   const issue = {
@@ -79,6 +87,77 @@ describe('makeCreatePreviewItem', () => {
 describe('makeEmptyQueryItem', () => {
   it('returns a non-actionable prompt item', () => {
     const item = makeEmptyQueryItem();
+    expect(item.valid).toBe(false);
+  });
+});
+
+describe('makeOptionPickerItem', () => {
+  it('renders a flag option: :token title, prefix-preserving autocomplete, non-actionable', () => {
+    const item = makeOptionPickerItem(resolveOption('mine')!, '');
+    expect(item.title).toBe(':mine');
+    expect(item.autocomplete).toBe(':mine ');
+    expect(item.valid).toBe(false);
+    expect(item.subtitle).toContain('assigned to me');
+  });
+
+  it('shows the arg hint for an arg option and preserves an existing prefix', () => {
+    const item = makeOptionPickerItem(resolveOption('team')!, ':mine ');
+    expect(item.title).toBe(':team');
+    expect(item.subtitle).toContain('KEY');
+    expect(item.autocomplete).toBe(':mine :team ');
+  });
+});
+
+describe('makeTeamItem', () => {
+  it('shows key + name and autocompletes the whole chain', () => {
+    const item = makeTeamItem({ key: 'ENG', name: 'Engineering' }, ':mine ');
+    expect(item.title).toBe('ENG');
+    expect(item.subtitle).toBe('Engineering');
+    expect(item.autocomplete).toBe(':mine :team ENG ');
+    expect(item.valid).toBe(false);
+  });
+});
+
+describe('makeProjectItem', () => {
+  it('quotes the project name in the autocomplete, carrying the team prefix', () => {
+    const item = makeProjectItem({ name: 'Mobile App Q3' }, ':team ENG ');
+    expect(item.title).toBe('Mobile App Q3');
+    expect(item.autocomplete).toBe(':team ENG :project "Mobile App Q3" ');
+    expect(item.valid).toBe(false);
+  });
+});
+
+describe('makePriorityItem', () => {
+  it('titles the level and autocompletes the token', () => {
+    const item = makePriorityItem({ label: 'High', value: 2 }, '');
+    expect(item.title).toBe('High');
+    expect(item.autocomplete).toBe(':priority High ');
+    expect(item.valid).toBe(false);
+  });
+});
+
+describe('makeDueItem', () => {
+  it('shows the label, inserts the hyphenated token, and carries the prefix', () => {
+    const item = makeDueItem({ token: 'last-week', label: 'Last week', description: 'Due last week' }, ':mine ');
+    expect(item.title).toBe('Last week');
+    expect(item.subtitle).toBe('Due last week');
+    expect(item.autocomplete).toBe(':mine :due last-week ');
+    expect(item.valid).toBe(false);
+  });
+});
+
+describe('makeInfoItem', () => {
+  it('is a non-actionable title/subtitle item', () => {
+    const item = makeInfoItem('Unrecognized date', 'Try 2026-07-01');
+    expect(item.title).toBe('Unrecognized date');
+    expect(item.valid).toBe(false);
+  });
+});
+
+describe('makeNoSmartOptionItem', () => {
+  it('names the unmatched partial and is non-actionable', () => {
+    const item = makeNoSmartOptionItem('zzz');
+    expect(item.title).toContain('zzz');
     expect(item.valid).toBe(false);
   });
 });

@@ -9,7 +9,8 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@linear/sdk": "^86.0.0"
+    "@linear/sdk": "^86.0.0",
+    "date-fns": "^4.4.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
