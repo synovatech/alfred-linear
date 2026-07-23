@@ -117,6 +117,21 @@ export function makePriorityItem(choice: { label: string; value: number }, prefi
   };
 }
 
+export function makeDueItem(keyword: { token: string; label: string; description: string }, prefix: string): AlfredItem {
+  return {
+    uid: `due-${keyword.token}`,
+    title: keyword.label,
+    subtitle: keyword.description,
+    autocomplete: `${prefix}:due ${keyword.token} `,
+    valid: false,
+  };
+}
+
+// Generic non-actionable item for hints and errors.
+export function makeInfoItem(title: string, subtitle: string): AlfredItem {
+  return { title, subtitle, valid: false };
+}
+
 export function makeNoSmartOptionItem(partial: string): AlfredItem {
   return {
     title: `No smart option matches “:${partial}”`,

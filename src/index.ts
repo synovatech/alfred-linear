@@ -12,12 +12,17 @@ import {
   makeTeamItem,
   makeProjectItem,
   makePriorityItem,
+  makeDueItem,
+  makeInfoItem,
   makeNoSmartOptionItem,
   type AlfredItem,
 } from './alfred';
 import { LINEAR_CLIENT_ID } from './config';
 import { parseQuery, type ParsedQuery } from './query';
 import { optionsByPrefix, PRIORITY_CHOICES } from './smartOptions';
+import { DUE_KEYWORDS } from './dueDate';
+
+const DUE_FORMAT_HINT = makeInfoItem('Or type a date', 'e.g. 2026-07-01, 01-07-2026, <2026-07-01, 20260701');
 
 export { parseQuery } from './query';
 
@@ -38,6 +43,13 @@ async function outputSuggestions(p: Extract<ParsedQuery, { mode: 'suggest' }>): 
     const pl = partial.toLowerCase();
     const choices = PRIORITY_CHOICES.filter((c) => c.label.toLowerCase().startsWith(pl));
     alfredOutput(choices.length > 0 ? choices.map((c) => makePriorityItem(c, prefix)) : [noMatch('priority')]);
+    return;
+  }
+
+  if (source === 'due') {
+    const pl = partial.toLowerCase();
+    const matches = DUE_KEYWORDS.filter((k) => k.token.startsWith(pl));
+    alfredOutput([...matches.map((k) => makeDueItem(k, prefix)), DUE_FORMAT_HINT]);
     return;
   }
 
@@ -95,6 +107,9 @@ export async function runMain(args: string[]): Promise<void> {
       return;
     case 'suggest':
       await outputSuggestions(parsed);
+      return;
+    case 'error':
+      alfredOutput([makeInfoItem(parsed.message, 'Try 2026-07-01, <2026-07-01, or a keyword like overdue')]);
       return;
     case 'search':
       alfredOutput(await searchIssues(parsed.term, parsed.filter));

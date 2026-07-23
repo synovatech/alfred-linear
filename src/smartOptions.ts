@@ -2,6 +2,7 @@
 // here (plus, for a new async arg source, a fetcher in commands/lookups.ts).
 // Both the Alfred autocomplete picker and the search dispatch read from this
 // list. Token abbreviations resolve by unique prefix (see resolveOption).
+import { parseDue, type DueFilter } from './dueDate';
 
 // A permissive structural view of the bits of Linear's IssueFilter we build.
 export interface IssueFilterInput {
@@ -10,6 +11,7 @@ export interface IssueFilterInput {
   project?: { name: { eq: string } };
   priority?: { eq: number };
   state?: { type: { in?: string[]; eq?: string } };
+  dueDate?: DueFilter;
 }
 
 export interface PriorityChoice {
@@ -40,10 +42,12 @@ export interface ArgOption {
   token: string;
   subtitle: string;
   argHint: string;
-  // Where the picker gets argument suggestions: an async source key, or a
-  // static list (priority).
-  source: 'teams' | 'projects' | PriorityChoice[];
+  // Names the argument-suggestion source: 'teams'/'projects' are fetched live;
+  // 'priority'/'due' are static keyword lists.
+  source: 'teams' | 'projects' | 'priority' | 'due';
   apply(filter: IssueFilterInput, value: string): void;
+  // Optional validation of a completed free-form arg (e.g. :due dates).
+  validate?(value: string): boolean;
 }
 
 export type SmartOption = FlagOption | ArgOption;
@@ -111,11 +115,23 @@ export const SMART_OPTIONS: SmartOption[] = [
     token: 'priority',
     subtitle: 'Search tickets by Priority',
     argHint: 'LEVEL',
-    source: PRIORITY_CHOICES,
+    source: 'priority',
     apply(f, v) {
       const choice = PRIORITY_CHOICES.find((p) => p.label.toLowerCase() === v.toLowerCase());
       if (choice) f.priority = { eq: choice.value };
     },
+  },
+  {
+    kind: 'arg',
+    token: 'due',
+    subtitle: 'Search tickets by due date',
+    argHint: 'DATE|KEYWORD',
+    source: 'due',
+    apply(f, v) {
+      const fragment = parseDue(v);
+      if (fragment) f.dueDate = fragment;
+    },
+    validate: (v) => parseDue(v) !== null,
   },
 ];
 

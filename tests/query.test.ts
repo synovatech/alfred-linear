@@ -167,6 +167,50 @@ describe('parseQuery — priority option', () => {
   });
 });
 
+describe('parseQuery — due option', () => {
+  it('suggests due keywords after ":due "', () => {
+    expect(parseQuery(':due ')).toEqual({ mode: 'suggest', source: 'due', partial: '', prefix: '' });
+  });
+
+  it('suggests while a keyword/date is being typed', () => {
+    expect(parseQuery(':due over')).toEqual({ mode: 'suggest', source: 'due', partial: 'over', prefix: '' });
+  });
+
+  it('searches by an explicit due date', () => {
+    expect(parseQuery(':due 2026-07-01 fix')).toEqual({
+      mode: 'search',
+      term: 'fix',
+      filter: { dueDate: { eq: '2026-07-01' }, ...ACTIVE },
+    });
+  });
+
+  it('maps the < operator to an exclusive before-filter', () => {
+    expect(parseQuery(':due <2026-07-01 fix')).toEqual({
+      mode: 'search',
+      term: 'fix',
+      filter: { dueDate: { lt: '2026-07-01' }, ...ACTIVE },
+    });
+  });
+
+  it('browses (list mode) for a completed due filter with no term', () => {
+    expect(parseQuery(':due 2026-07-01 ')).toEqual({
+      mode: 'list',
+      filter: { dueDate: { eq: '2026-07-01' }, ...ACTIVE },
+    });
+  });
+
+  it('applies a keyword filter (smoke — value depends on today)', () => {
+    const parsed = parseQuery(':due overdue fix');
+    expect(parsed).toMatchObject({ mode: 'search', term: 'fix' });
+    expect((parsed as any).filter.dueDate.lt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('errors on an unparseable due value', () => {
+    expect(parseQuery(':due notadate x')).toEqual({ mode: 'error', message: 'Unrecognized date: notadate' });
+    expect(parseQuery(':due notadate ')).toMatchObject({ mode: 'error' });
+  });
+});
+
 describe('parseQuery — full composition', () => {
   it('combines team, mine, and priority with a search term', () => {
     expect(parseQuery(':team ENG :mine :priority High fix bug')).toEqual({

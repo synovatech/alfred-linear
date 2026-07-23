@@ -59,8 +59,11 @@ A `:`-prefixed **smart-option** namespace composes filters. Options chain left-t
 | `:team <KEY>` | arg | `team.key eq KEY` — arg autocompleted from live teams |
 | `:project "<Name>"` | arg | `project.name eq Name` — arg autocompleted from live projects, scoped to a `:team` chosen earlier |
 | `:priority <Level>` | arg | `priority eq N` — static picker (Urgent/High/Medium/Low/None → 1/2/3/4/0) |
+| `:due <DATE\|keyword>` | arg | `dueDate` — parsed in `src/dueDate.ts` (uses `date-fns`) |
 
 State options (`:all`, `:done`, default) are one dimension — last in the chain wins. Adding an option = one entry in `SMART_OPTIONS`; a new async arg source also needs a fetcher in `commands/lookups.ts` and an item builder in `alfred.ts`.
+
+**`:due` grammar** (`src/dueDate.ts`): explicit dates `yyyy-mm-dd` / `dd-mm-yyyy` / `dd-mm-yy` (day-first, `20yy`) / `yyyymmdd` (`-` or `/`), normalized to `YYYY-MM-DD` and round-trip validated. Operators glue to the date: `<DATE`→`dueDate.lt`, `>DATE`→`dueDate.gt` (exclusive), bare→`eq`. Keywords (hyphenated single tokens, week starts Monday): `today`/`yesterday`/`tomorrow`, `this|last|next-week`, `this|last|next-month`, `overdue` (`lt today`), `soon` (next 7 days), `no-due`/`has-due` (`null`). `parseDue(value, now?)` returns a filter fragment or `null`; `now` is injectable for deterministic tests. A completed unparseable value → `{ mode:'error' }` → a `valid:false` item; the arg picker also shows a persistent format-hint item.
 
 **Trailing space is the "token complete" signal** (standard Alfred multi-arg pattern). Token abbreviations resolve by **unique prefix** (`:proj`→project; `:p`/`:pr` are ambiguous with priority→picker). Behaviour:
 - `:` / `:pro` (no trailing space) → option picker (`valid:false` items whose `autocomplete` rebuilds the whole chain + `:token `).
@@ -69,7 +72,7 @@ State options (`:all`, `:done`, default) are one dimension — last in the chain
 - `:mine ` / `:team ENG ` (filters, **no free-text term**) → **list mode**: `client.issues({filter, orderBy: UpdatedAt})` (browse), not full-text search.
 - `<filters> <term>` → `searchIssues(term, filter)`.
 
-Split across `src/query.ts` (pure tokenizer + `parseQuery` + `assembleFilter`), `src/smartOptions.ts` (registry), `src/commands/lookups.ts` (team/project fetch). All handled inside the Script Filter (main.js) — no `info.plist` routing (suggestion items are `valid:false`; only Tab-complete, never Enter).
+Split across `src/query.ts` (pure tokenizer + `parseQuery` + `assembleFilter`), `src/smartOptions.ts` (registry), `src/commands/lookups.ts` (team/project fetch), `src/dueDate.ts` (date parsing). All handled inside the Script Filter (main.js) — no `info.plist` routing (suggestion items are `valid:false`; only Tab-complete, never Enter).
 
 ## Alfred workflow wiring (info.plist)
 
@@ -116,7 +119,7 @@ These were either listed in the original design spec as future phases, or surfac
 - Add a comment to an issue
 
 ### Richer search and navigation
-- ~~Filter search by team, project, assignee, status, or label~~ **Done** (except label): `:all`/`:done` (status), `:mine` (assignee), `:team KEY`, `:project "Name"`, `:priority Level`, composable, with live autocomplete. Add more via the `SMART_OPTIONS` registry — a new flag is one entry; a new async arg source also needs a `commands/lookups.ts` fetcher + `alfred.ts` item builder. `:label` is the obvious next one.
+- ~~Filter search by team, project, assignee, status, or label~~ **Done** (except label): `:all`/`:done` (status), `:mine` (assignee), `:team KEY`, `:project "Name"`, `:priority Level`, composable, with live autocomplete. Add more via the `SMART_OPTIONS` registry — a new flag is one entry; a new async arg source also needs a `commands/lookups.ts` fetcher + `alfred.ts` item builder. `:label` is the obvious next one. `:due` (due-date filtering with explicit dates + relative keywords) is also **done** — see `src/dueDate.ts`.
 - Search for projects and display their issues
 - Browse by team → project → issues
 - List views / custom views and browse their contents

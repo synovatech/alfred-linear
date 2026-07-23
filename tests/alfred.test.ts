@@ -8,6 +8,8 @@ import {
   makeTeamItem,
   makeProjectItem,
   makePriorityItem,
+  makeDueItem,
+  makeInfoItem,
   makeNoSmartOptionItem,
   alfredOutput,
 } from '../src/alfred';
@@ -130,6 +132,24 @@ describe('makePriorityItem', () => {
     const item = makePriorityItem({ label: 'High', value: 2 }, '');
     expect(item.title).toBe('High');
     expect(item.autocomplete).toBe(':priority High ');
+    expect(item.valid).toBe(false);
+  });
+});
+
+describe('makeDueItem', () => {
+  it('shows the label, inserts the hyphenated token, and carries the prefix', () => {
+    const item = makeDueItem({ token: 'last-week', label: 'Last week', description: 'Due last week' }, ':mine ');
+    expect(item.title).toBe('Last week');
+    expect(item.subtitle).toBe('Due last week');
+    expect(item.autocomplete).toBe(':mine :due last-week ');
+    expect(item.valid).toBe(false);
+  });
+});
+
+describe('makeInfoItem', () => {
+  it('is a non-actionable title/subtitle item', () => {
+    const item = makeInfoItem('Unrecognized date', 'Try 2026-07-01');
+    expect(item.title).toBe('Unrecognized date');
     expect(item.valid).toBe(false);
   });
 });

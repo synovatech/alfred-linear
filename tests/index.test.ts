@@ -113,4 +113,20 @@ describe('runMain (script filter dispatch)', () => {
     await runMain([':priority ']);
     expect(lastItems().map((i) => i.title)).toEqual(['Urgent', 'High', 'Medium', 'Low', 'None']);
   });
+
+  it('renders due keywords plus a format hint after ":due "', async () => {
+    await runMain([':due ']);
+    const titles = lastItems().map((i) => i.title);
+    expect(titles).toContain('Today');
+    expect(titles).toContain('Overdue');
+    expect(titles[titles.length - 1]).toBe('Or type a date');
+  });
+
+  it('outputs an error item for an unparseable due value', async () => {
+    await runMain([':due notadate x']);
+    expect(lastItems()).toHaveLength(1);
+    expect(lastItems()[0].valid).toBe(false);
+    expect(lastItems()[0].title).toContain('notadate');
+    expect(searchIssues).not.toHaveBeenCalled();
+  });
 });

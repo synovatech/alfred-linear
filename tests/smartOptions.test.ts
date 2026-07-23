@@ -8,9 +8,9 @@ import {
 } from '../src/smartOptions';
 
 describe('SMART_OPTIONS registry', () => {
-  it('has all six options with subtitles', () => {
+  it('has all options with subtitles', () => {
     expect(SMART_OPTIONS.map((o) => o.token).sort()).toEqual(
-      ['all', 'done', 'mine', 'priority', 'project', 'team'],
+      ['all', 'due', 'done', 'mine', 'priority', 'project', 'team'].sort(),
     );
     for (const o of SMART_OPTIONS) expect(o.subtitle.length).toBeGreaterThan(0);
   });

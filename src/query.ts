@@ -78,14 +78,19 @@ function renderModifier(option: SmartOption, value?: string): string {
 export type ParsedQuery =
   | { mode: 'empty' }
   | { mode: 'create'; team: string; title: string }
-  | { mode: 'suggest'; source: 'options' | 'teams' | 'projects' | 'priority'; partial: string; prefix: string; teamKey?: string }
+  | { mode: 'suggest'; source: 'options' | 'teams' | 'projects' | 'priority' | 'due'; partial: string; prefix: string; teamKey?: string }
+  | { mode: 'error'; message: string }
   | { mode: 'search'; term: string; filter: IssueFilterInput }
   | { mode: 'list'; filter: IssueFilterInput };
 
 function suggestArgs(option: ArgOption, partial: string, prefix: string, teamKey?: string): ParsedQuery {
-  if (option.source === 'teams') return { mode: 'suggest', source: 'teams', partial, prefix };
-  if (option.source === 'projects') return { mode: 'suggest', source: 'projects', partial, prefix, teamKey };
-  return { mode: 'suggest', source: 'priority', partial, prefix };
+  return {
+    mode: 'suggest',
+    source: option.source,
+    partial,
+    prefix,
+    ...(option.source === 'projects' ? { teamKey } : {}),
+  };
 }
 
 export function parseQuery(raw: string): ParsedQuery {
@@ -134,6 +139,9 @@ export function parseQuery(raw: string): ParsedQuery {
     const argComplete = i + 1 !== tokens.length - 1 || trailingSpace;
     if (!argComplete) return suggestArgs(opt, argTok.value, prefix(), teamKey);
 
+    if (opt.validate && !opt.validate(argTok.value)) {
+      return { mode: 'error', message: `Unrecognized date: ${argTok.value}` };
+    }
     mods.push({ option: opt, value: argTok.value });
     if (opt.token === 'team') teamKey = argTok.value;
     i += 2;
