@@ -225,3 +225,76 @@ describe('parseQuery — full composition', () => {
     });
   });
 });
+
+describe('parseQuery — exact ticket identifiers', () => {
+  it('routes a bare identifier to identifier mode with no state filter on the lookup', () => {
+    expect(parseQuery('KIN-206')).toEqual({
+      mode: 'identifier',
+      team: 'KIN',
+      number: 206,
+      term: 'KIN-206',
+      lookupFilter: {},
+      filter: ACTIVE,
+    });
+  });
+
+  it('uppercases the team key so lowercase codes still resolve', () => {
+    expect(parseQuery('kin-206')).toEqual({
+      mode: 'identifier',
+      team: 'KIN',
+      number: 206,
+      term: 'kin-206',
+      lookupFilter: {},
+      filter: ACTIVE,
+    });
+  });
+
+  it('keeps explicit state options on the lookup filter', () => {
+    expect(parseQuery(':done KIN-206')).toEqual({
+      mode: 'identifier',
+      team: 'KIN',
+      number: 206,
+      term: 'KIN-206',
+      lookupFilter: { state: { type: { eq: 'completed' } } },
+      filter: { state: { type: { eq: 'completed' } } },
+    });
+  });
+
+  it('keeps explicit non-state options on the lookup, default only on the fallback', () => {
+    expect(parseQuery(':mine KIN-206')).toEqual({
+      mode: 'identifier',
+      team: 'KIN',
+      number: 206,
+      term: 'KIN-206',
+      lookupFilter: { assignee: { isMe: { eq: true } } },
+      filter: { assignee: { isMe: { eq: true } }, ...ACTIVE },
+    });
+  });
+
+  it('falls back to plain search when an explicit :team contradicts the code', () => {
+    expect(parseQuery(':team ENG KIN-206')).toEqual({
+      mode: 'search',
+      term: 'KIN-206',
+      filter: { team: { key: { eq: 'ENG' } }, ...ACTIVE },
+    });
+  });
+
+  it('uses identifier mode when the explicit :team agrees with the code', () => {
+    expect(parseQuery(':team KIN KIN-206')).toEqual({
+      mode: 'identifier',
+      team: 'KIN',
+      number: 206,
+      term: 'KIN-206',
+      lookupFilter: { team: { key: { eq: 'KIN' } } },
+      filter: { team: { key: { eq: 'KIN' } }, ...ACTIVE },
+    });
+  });
+
+  it('leaves an identifier with extra words as a normal search', () => {
+    expect(parseQuery('KIN-206 maps')).toEqual({ mode: 'search', term: 'KIN-206 maps', filter: ACTIVE });
+  });
+
+  it('leaves non-identifier terms alone', () => {
+    expect(parseQuery('venue map')).toEqual({ mode: 'search', term: 'venue map', filter: ACTIVE });
+  });
+});
