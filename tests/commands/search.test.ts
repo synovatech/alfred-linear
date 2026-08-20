@@ -4,7 +4,7 @@ import { PaginationOrderBy } from '@linear/sdk';
 vi.mock('../../src/linear', () => ({ getClient: vi.fn() }));
 
 import { getClient } from '../../src/linear';
-import { searchIssues, listIssues } from '../../src/commands/search';
+import { searchIssues, listIssues, findByIdentifier } from '../../src/commands/search';
 import type { AlfredItem } from '../../src/alfred';
 
 const ACTIVE = { state: { type: { in: ['triage', 'backlog', 'unstarted', 'started'] } } };
@@ -94,5 +94,66 @@ describe('listIssues', () => {
     const items = await listIssues(ACTIVE);
     expect(items).toHaveLength(1);
     expect(items[0].valid).toBe(false);
+  });
+});
+
+describe('findByIdentifier', () => {
+  const query = {
+    team: 'KIN',
+    number: 206,
+    term: 'KIN-206',
+    lookupFilter: {},
+    filter: ACTIVE,
+  };
+
+  it('looks the issue up directly by number + team, ignoring the active-only default', async () => {
+    const issues = vi.fn().mockResolvedValue({ nodes: [makeMockIssue({ identifier: 'KIN-206' })] });
+    const searchIssuesFn = vi.fn();
+    vi.mocked(getClient).mockResolvedValue({ issues, searchIssues: searchIssuesFn } as any);
+
+    const items = await findByIdentifier(query);
+
+    expect(issues).toHaveBeenCalledWith({
+      first: 1,
+      filter: { number: { eq: 206 }, team: { key: { eq: 'KIN' } } },
+    });
+    expect(searchIssuesFn).not.toHaveBeenCalled();
+    expect(items).toHaveLength(1);
+    expect(items[0].title).toContain('KIN-206');
+  });
+
+  it('merges explicit filters into the direct lookup', async () => {
+    const issues = vi.fn().mockResolvedValue({ nodes: [makeMockIssue()] });
+    vi.mocked(getClient).mockResolvedValue({ issues, searchIssues: vi.fn() } as any);
+
+    await findByIdentifier({ ...query, lookupFilter: { assignee: { isMe: { eq: true } } } });
+
+    expect(issues).toHaveBeenCalledWith({
+      first: 1,
+      filter: { assignee: { isMe: { eq: true } }, number: { eq: 206 }, team: { key: { eq: 'KIN' } } },
+    });
+  });
+
+  it('falls back to full-text search when the direct lookup finds nothing', async () => {
+    const issues = vi.fn().mockResolvedValue({ nodes: [] });
+    const searchIssuesFn = vi.fn().mockResolvedValue({ nodes: [makeMockIssue({ identifier: 'KIN-227' })] });
+    vi.mocked(getClient).mockResolvedValue({ issues, searchIssues: searchIssuesFn } as any);
+
+    const items = await findByIdentifier(query);
+
+    expect(searchIssuesFn).toHaveBeenCalledWith('KIN-206', { first: 10, filter: ACTIVE });
+    expect(items[0].title).toContain('KIN-227');
+  });
+
+  it('reports no results when neither the lookup nor the fallback matches', async () => {
+    vi.mocked(getClient).mockResolvedValue({
+      issues: vi.fn().mockResolvedValue({ nodes: [] }),
+      searchIssues: vi.fn().mockResolvedValue({ nodes: [] }),
+    } as any);
+
+    const items = await findByIdentifier(query);
+    expect(items).toHaveLength(1);
+    expect(items[0].valid).toBe(false);
+    expect(items[0].title).toContain('No results');
   });
 });

@@ -49,6 +49,8 @@ Errors in `--detail` must be plain text (shown in Text View). Errors in `--creat
 
 Default search is **active-only**: it applies `ACTIVE_STATE_FILTER` (`src/smartOptions.ts`), a filter on the meta-state `state.type` — `in: ['triage','backlog','unstarted','started']` (see `ACTIVE_STATE_TYPES`). This excludes `completed`, `canceled`, and `duplicate`. A positive `in` list is deliberate: `type` is a fixed enum, and a negative filter would wrongly let `duplicate` through.
 
+**Exact ticket codes bypass the default.** A term that is exactly `TEAM-123` (`IDENTIFIER_TERM` in `src/query.ts`) parses to `mode: 'identifier'` and is resolved by `findByIdentifier` (`commands/search.ts`) via a direct `client.issues({ number, team.key })` lookup with **no** active-only default — so `lin KIN-206` finds a completed ticket. The team key is uppercased, so `kin-206` works. Explicitly-requested filters *do* still apply (`lookupFilter` = `assembleFilter(mods, false)`), so `:mine KIN-206` returns nothing if it isn't yours; a contradictory `:team ENG KIN-206` falls back to plain search. If the direct lookup misses (typo'd/non-existent code), it falls through to an ordinary full-text `searchIssues` on the same term.
+
 A `:`-prefixed **smart-option** namespace composes filters. Options chain left-to-right before the free-text term; all combine with AND.
 
 | Option | Kind | Filter |

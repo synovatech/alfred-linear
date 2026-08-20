@@ -1,7 +1,7 @@
 import { readTokens, startOAuthFlow } from './auth';
 import { getIssueDetail } from './commands/detail';
 import { createIssue } from './commands/create';
-import { searchIssues, listIssues } from './commands/search';
+import { searchIssues, listIssues, findByIdentifier } from './commands/search';
 import { fetchTeams, fetchProjects } from './commands/lookups';
 import {
   alfredOutput,
@@ -110,6 +110,9 @@ export async function runMain(args: string[]): Promise<void> {
       return;
     case 'error':
       alfredOutput([makeInfoItem(parsed.message, 'Try 2026-07-01, <2026-07-01, or a keyword like overdue')]);
+      return;
+    case 'identifier':
+      alfredOutput(await findByIdentifier(parsed));
       return;
     case 'search':
       alfredOutput(await searchIssues(parsed.term, parsed.filter));

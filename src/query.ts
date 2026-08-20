@@ -53,8 +53,10 @@ export interface Modifier {
 }
 
 // Merge each modifier's filter fragment. If no option touched the state
-// dimension, apply the active-only default.
-export function assembleFilter(mods: Modifier[]): IssueFilterInput {
+// dimension, apply the active-only default — unless `applyDefault` is false,
+// which yields the explicitly-requested filters alone (used by exact
+// identifier lookups, where the implicit default would hide a closed ticket).
+export function assembleFilter(mods: Modifier[], applyDefault = true): IssueFilterInput {
   const filter: IssueFilterInput = {};
   let stateSet = false;
   for (const { option, value } of mods) {
@@ -65,7 +67,7 @@ export function assembleFilter(mods: Modifier[]): IssueFilterInput {
       option.apply(filter, value ?? '');
     }
   }
-  if (!stateSet) filter.state = { type: { in: [...ACTIVE_STATE_TYPES] } };
+  if (!stateSet && applyDefault) filter.state = { type: { in: [...ACTIVE_STATE_TYPES] } };
   return filter;
 }
 
@@ -75,8 +77,25 @@ function renderModifier(option: SmartOption, value?: string): string {
   return `:${option.token} ${value} `;
 }
 
+// A term that is exactly a ticket code, e.g. `KIN-206`. `lookupFilter` holds
+// only the explicitly-requested filters (no active-only default) for the direct
+// number+team lookup; `filter` is the ordinary search filter used if that misses.
+export interface IdentifierQuery {
+  mode: 'identifier';
+  team: string;
+  number: number;
+  term: string;
+  lookupFilter: IssueFilterInput;
+  filter: IssueFilterInput;
+}
+
+// Terms of the form TEAM-123 are looked up exactly rather than full-text
+// searched, so a completed ticket is still found by its code.
+const IDENTIFIER_TERM = /^([A-Za-z][A-Za-z0-9]*)-(\d+)$/;
+
 export type ParsedQuery =
   | { mode: 'empty' }
+  | IdentifierQuery
   | { mode: 'create'; team: string; title: string }
   | { mode: 'suggest'; source: 'options' | 'teams' | 'projects' | 'priority' | 'due'; partial: string; prefix: string; teamKey?: string }
   | { mode: 'error'; message: string }
@@ -150,7 +169,23 @@ export function parseQuery(raw: string): ParsedQuery {
   const term = i < tokens.length ? raw.slice(tokens[i].start).trim() : '';
   const filter = assembleFilter(mods);
 
-  if (term) return { mode: 'search', term, filter };
+  if (term) {
+    const id = term.match(IDENTIFIER_TERM);
+    const explicitTeam = filter.team?.key.eq;
+    // A contradictory `:team ENG KIN-206` cannot resolve as a lookup — let the
+    // ordinary filtered search answer it (with nothing) instead.
+    if (id && (!explicitTeam || explicitTeam.toUpperCase() === id[1].toUpperCase())) {
+      return {
+        mode: 'identifier',
+        team: id[1].toUpperCase(),
+        number: parseInt(id[2], 10),
+        term,
+        lookupFilter: assembleFilter(mods, false),
+        filter,
+      };
+    }
+    return { mode: 'search', term, filter };
+  }
   if (mods.length > 0) return { mode: 'list', filter };
   return { mode: 'empty' };
 }
