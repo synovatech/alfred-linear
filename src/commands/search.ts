@@ -20,6 +20,7 @@ async function toItems(nodes: any[]): Promise<AlfredItem[]> {
         updatedAt: issue.updatedAt.toISOString(),
         state: state ? { name: state.name } : null,
         assignee: assignee ? { displayName: assignee.displayName } : null,
+        branchName: issue.branchName,
       };
       return makeSearchItem(shape, isSingle);
     }),

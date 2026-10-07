@@ -43,6 +43,8 @@ workflow-folder/    Symlink → Alfred.alfredpreferences/workflows/user.workflow
 | `--create` | plain URL string | Alfred Open URL node |
 | `--auth` | nothing (process exits) | Alfred waits for exit |
 
+Issue result items also carry modifier actions, routed by Script Filter connections in `info.plist`: **⌘↩** opens the issue URL (`{var:url}`), **⌥↩** copies the issue's `branchName` to the clipboard (item `mods.alt.arg` → Copy to Clipboard output node). An item-level `mods` entry only works if there's a matching modifier connection, so add both together.
+
 Errors in `--detail` must be plain text (shown in Text View). Errors in `--create` have no good outlet — they surface as a garbled URL attempt. The Script Filter catch-all uses `alfredOutput`.
 
 ## Search syntax & smart options
@@ -117,7 +119,7 @@ These were either listed in the original design spec as future phases, or surfac
 - Assign an issue to a team member
 - Set or change priority
 - Add issue to the current cycle
-- Copy issue URL to clipboard as an alternate `↩` action (⌘↩ or similar)
+- Copy issue URL to clipboard as an alternate `↩` action (⌥↩ is taken by copy-branch-name; ⌘↩ opens the URL)
 - Add a comment to an issue
 
 ### Richer search and navigation

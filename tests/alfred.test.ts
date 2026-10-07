@@ -25,6 +25,7 @@ describe('makeSearchItem', () => {
     updatedAt: '2026-05-20T10:00:00.000Z',
     state: { name: 'In Progress' },
     assignee: { displayName: 'Adam Horner' },
+    branchName: 'adam/kin-1-fix-auth-bug',
   };
 
   it('sets uid to identifier', () => {
@@ -64,6 +65,15 @@ describe('makeSearchItem', () => {
     const item = makeSearchItem({ ...issue, description: longDesc }, true);
     expect(item.subtitle!.length).toBeLessThan(130);
     expect(item.subtitle).toContain('…');
+  });
+
+  it('⌥ modifier copies the branch name with a preview subtitle', () => {
+    const item = makeSearchItem(issue, false);
+    expect(item.mods?.alt).toEqual({
+      arg: 'adam/kin-1-fix-auth-bug',
+      subtitle: 'Copy branch name (adam/kin-1-fix-auth-bug) to the clipboard',
+      valid: true,
+    });
   });
 });
 
