@@ -19,6 +19,7 @@ function makeMockIssue(overrides = {}) {
     updatedAt: new Date('2026-05-20'),
     state: Promise.resolve({ name: 'In Progress' }),
     assignee: Promise.resolve({ displayName: 'Adam Horner' }),
+    branchName: 'adam/kin-1-fix-auth-bug',
     ...overrides,
   };
 }
@@ -52,6 +53,14 @@ describe('searchIssues', () => {
     } as any);
     const items = await searchIssues('auth');
     expect(items[0].subtitle).toContain('JWT token');
+  });
+
+  it('passes the branch name through to the ⌥ modifier', async () => {
+    vi.mocked(getClient).mockResolvedValue({
+      searchIssues: vi.fn().mockResolvedValue({ nodes: [makeMockIssue()] }),
+    } as any);
+    const items = await searchIssues('auth');
+    expect(items[0].mods?.alt?.arg).toBe('adam/kin-1-fix-auth-bug');
   });
 
   it('uses brief subtitle when multiple results', async () => {

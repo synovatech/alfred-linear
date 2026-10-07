@@ -1,3 +1,9 @@
+export interface AlfredMod {
+  arg?: string;
+  subtitle?: string;
+  valid?: boolean;
+}
+
 export interface AlfredItem {
   uid?: string;
   title: string;
@@ -10,6 +16,7 @@ export interface AlfredItem {
   icon?: { path?: string; type?: string };
   text?: { copy?: string; largetype?: string };
   quicklookurl?: string;
+  mods?: { alt?: AlfredMod; cmd?: AlfredMod };
 }
 
 export interface IssueShape {
@@ -21,6 +28,7 @@ export interface IssueShape {
   updatedAt: string;
   state: { name: string } | null;
   assignee: { displayName: string } | null;
+  branchName: string;
 }
 
 export function makeSearchItem(issue: IssueShape, isSingle: boolean): AlfredItem {
@@ -38,6 +46,14 @@ export function makeSearchItem(issue: IssueShape, isSingle: boolean): AlfredItem
     arg: issue.identifier,
     variables: { url: issue.url, issueId: issue.identifier },
     match: `${issue.identifier} ${issue.title} ${status} ${assignee}`.toLowerCase(),
+    // ⌥↩ is wired in info.plist to a Copy to Clipboard output.
+    mods: {
+      alt: {
+        arg: issue.branchName,
+        subtitle: `Copy branch name (${issue.branchName}) to the clipboard`,
+        valid: true,
+      },
+    },
   };
 }
 

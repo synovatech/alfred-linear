@@ -30,6 +30,16 @@
 				<key>vitoclose</key>
 				<false/>
 			</dict>
+			<dict>
+				<key>destinationuid</key>
+				<string>AA000008-0000-0000-0000-000000000008</string>
+				<key>modifiers</key>
+				<integer>524288</integer>
+				<key>modifiersubtext</key>
+				<string>Copy branch name to the clipboard</string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
 		</array>
 		<key>AA000001-0000-0000-0000-000000000001</key>
 		<array>
@@ -361,6 +371,25 @@ node "$DIR/js/main.js" --detail "$1"</string>
 			<key>version</key>
 			<integer>1</integer>
 		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>autopaste</key>
+				<false/>
+				<key>clipboardtext</key>
+				<string>{query}</string>
+				<key>ignoredynamicplaceholders</key>
+				<false/>
+				<key>transient</key>
+				<false/>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.output.clipboard</string>
+			<key>uid</key>
+			<string>AA000008-0000-0000-0000-000000000008</string>
+			<key>version</key>
+			<integer>3</integer>
+		</dict>
 	</array>
 	<key>readme</key>
 	<string></string>
@@ -421,6 +450,13 @@ node "$DIR/js/main.js" --detail "$1"</string>
 			<real>660</real>
 			<key>ypos</key>
 			<real>340</real>
+		</dict>
+		<key>AA000008-0000-0000-0000-000000000008</key>
+		<dict>
+			<key>xpos</key>
+			<real>260</real>
+			<key>ypos</key>
+			<real>590</real>
 		</dict>
 	</dict>
 	<key>userconfigurationconfig</key>
