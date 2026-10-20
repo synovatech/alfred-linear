@@ -13,6 +13,9 @@ npm run sync      # pull Alfred UI edits back: workflow-folder/{info.plist,icon.
 npm run typecheck # tsc --noEmit
 ```
 
+## Linear
+- Project: Alfred Linear — https://linear.app/synovatech/project/alfred-linear-9e8ed2cbcc32
+
 ## Repository layout
 
 ```
