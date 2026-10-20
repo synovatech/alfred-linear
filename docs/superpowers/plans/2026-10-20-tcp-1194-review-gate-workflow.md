@@ -67,7 +67,7 @@ git commit -m "ci: add the Review Gate workflow required by the org ruleset [TCP
 **Files:**
 - Modify: `CLAUDE.md` (insert between the `## Commands` code block and `## Repository layout`)
 
-- [ ] **Step 1: Insert exactly**
+- [x] **Step 1: Insert exactly**
 
 ```markdown
 ## Linear
@@ -76,12 +76,12 @@ git commit -m "ci: add the Review Gate workflow required by the org ruleset [TCP
 
 followed by a blank line before `## Repository layout`.
 
-- [ ] **Step 2: Verify**
+- [x] **Step 2: Verify**
 
 Run: `grep -n -A1 '^## Linear$' CLAUDE.md && npm run typecheck && npm test`
 Expected: the heading and project line print; typecheck clean; all tests pass.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add CLAUDE.md
