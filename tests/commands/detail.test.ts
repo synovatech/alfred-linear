@@ -128,6 +128,22 @@ describe('getIssueDetail', () => {
     expect(md).toContain('* **Labels:** Backend, Frontend, Type: Bug');
   });
 
+  it('falls back to the bare label name when the group lookup fails', async () => {
+    const issue = makeMockIssue({
+      labels: vi.fn().mockResolvedValue({
+        nodes: [
+          { name: 'Bug', parent: Promise.reject(new Error('rate limited')) },
+          { name: 'Frontend', parent: undefined },
+        ],
+      }),
+    });
+    vi.mocked(getClient).mockResolvedValue({
+      issues: vi.fn().mockResolvedValue({ nodes: [issue] }),
+    } as any);
+    const md = await getIssueDetail('KIN-1');
+    expect(md).toContain('* **Labels:** Bug, Frontend');
+  });
+
   it('places labels directly after assignee', async () => {
     const issue = makeMockIssue({
       labels: vi.fn().mockResolvedValue({ nodes: [{ name: 'Bug', parent: undefined }] }),

@@ -23,10 +23,11 @@ export async function getIssueDetail(identifier: string): Promise<string> {
   const attachments = attachmentsConn?.nodes ?? [];
   const children = childrenConn?.nodes ?? [];
   // Grouped labels render as "Group: Name"; `parent` is a lazy fetch, so resolve them in parallel.
+  // A failed group lookup falls back to the bare name rather than losing the whole detail view.
   const labelNames = (
     await Promise.all(
       (labelsConn?.nodes ?? []).map(async (label) => {
-        const parent = await label.parent;
+        const parent = await label.parent?.catch(() => undefined);
         return parent ? `${parent.name}: ${label.name}` : label.name;
       }),
     )
