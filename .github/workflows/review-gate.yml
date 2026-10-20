@@ -1,0 +1,108 @@
+# Required status check that passes once Claude Code Review has reviewed any
+# commit on the PR and, in repos that deploy to Vercel, the head commit's
+# Vercel deployment has succeeded. Claude reviews once per PR, so requiring its
+# own check blocked every PR that received a push after the review, and
+# requiring Vercel's check blocked repos that never deploy there. Not filtered
+# by base branch: the ruleset targets each repo's default branch, which isn't
+# always main. The same file works unchanged in every Synova repo.
+name: Review gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  pull_request_review:
+    types: [submitted]
+  # Re-runs the gate when a Vercel deployment finishes late or is redeployed.
+  deployment_status:
+
+permissions:
+  deployments: read
+  pull-requests: read
+  statuses: read
+
+# No concurrency group: runs are idempotent, and a cancelled run would leave a
+# cancelled Review Gate check on the head commit beside the newer result.
+
+defaults:
+  run:
+    # Explicit bash adds pipefail to the default -e.
+    shell: bash
+
+jobs:
+  review-gate:
+    name: Review Gate
+    if: github.event_name != 'deployment_status' || contains(fromJSON('["success", "failure", "error"]'), github.event.deployment_status.state)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      SHA: ${{ github.event.pull_request.head.sha || github.event.deployment.sha }}
+    steps:
+      - name: Find the PR
+        id: pr
+        env:
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          if [ -z "$PR" ]; then
+            PR=$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '[.[] | select(.state == "open" and .head.sha == env.SHA)][0].number // empty')
+          fi
+          if [ -z "$PR" ]; then
+            echo "No open PR has $SHA as its head; nothing to gate."
+          fi
+          echo "number=$PR" >> "$GITHUB_OUTPUT"
+
+      - name: Require a Claude Code Review on this PR
+        if: steps.pr.outputs.number != ''
+        env:
+          PR: ${{ steps.pr.outputs.number }}
+        run: |
+          # One line per Claude review across all pages; --jq runs per page.
+          reviews=$(gh api --paginate "repos/$REPO/pulls/$PR/reviews" \
+            --jq '.[] | select(.user.login == "claude[bot]") | .id' | wc -l)
+          if [ "$reviews" -eq 0 ]; then
+            echo "::error::Claude Code Review hasn't reviewed this PR yet. It runs when the PR is opened or marked ready for review; comment '@claude review' to request one."
+            exit 1
+          fi
+          echo "Claude Code Review has reviewed this PR ($reviews review(s))."
+
+      # A repo counts as deploying to Vercel if Vercel has ever created a
+      # deployment in it. Monorepos get one "Vercel – <project>" status per
+      # project, so every status whose context starts with "Vercel" must pass,
+      # and the set must hold for two polls in a row in case a slower project
+      # hasn't posted yet.
+      - name: Require a successful Vercel deployment, if this repo deploys there
+        if: steps.pr.outputs.number != ''
+        run: |
+          deployments=$(gh api "repos/$REPO/deployments?per_page=100" \
+            --jq '[.[] | select(.creator.login == "vercel[bot]")] | length')
+          if [ "$deployments" -eq 0 ]; then
+            echo "This repo doesn't deploy to Vercel; skipping."
+            exit 0
+          fi
+
+          deadline=$((SECONDS + 15 * 60))
+          last_success=
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            # A failed call counts as "no status yet"; the deadline decides.
+            statuses=$(gh api "repos/$REPO/commits/$SHA/status" \
+              --jq '[.statuses[] | select(.context | startswith("Vercel")) | "\(.context)=\(.state)"] | sort | join(",")') \
+              || { echo "::warning::Couldn't read commit statuses; retrying."; statuses=; }
+            case ",$statuses," in
+              *=failure,*|*=error,*)
+                echo "::error::Vercel deployment failed for $SHA ($statuses)."
+                exit 1 ;;
+              ,,|*=pending,*)
+                last_success= ;;
+              *)
+                if [ "$statuses" = "$last_success" ]; then
+                  echo "Vercel deployment succeeded for $SHA ($statuses)."
+                  exit 0
+                fi
+                last_success=$statuses ;;
+            esac
+            echo "Waiting for Vercel (statuses: ${statuses:-none yet})..."
+            sleep 20
+          done
+          echo "::error::No successful Vercel deployment for $SHA after 15 minutes."
+          exit 1
