@@ -145,5 +145,5 @@ These were either listed in the original design spec as future phases, or surfac
 ### Infrastructure
 - `npm run package` — zip `workflow-folder/` into `alfred-linearis.alfredworkflow` for one-click install without needing the repo
 - Paginate search results (currently returns the first page from the SDK with no "load more")
-- Show issue labels in search subtitles and detail view
+- Show issue labels in search subtitles (detail view **done**: `* **Labels:**` line after Assignee, grouped labels as `Group: Name`, sorted, omitted when empty)
 - Display priority indicator in search results and detail view
