@@ -5,14 +5,17 @@
 # requiring Vercel's check blocked repos that never deploy there. Not filtered
 # by base branch: the ruleset targets each repo's default branch, which isn't
 # always main. The same file works unchanged in every Synova repo.
-name: Review gate
+name: Review Gate
 
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
   pull_request_review:
     types: [submitted]
-  # Re-runs the gate when a Vercel deployment finishes late or is redeployed.
+  # Re-runs Review Gate when a Vercel deployment finishes late or is
+  # redeployed. Every state runs the full gate, which waits for Vercel itself:
+  # filtering states with a job-level `if` would leave a skipped run, and a
+  # skipped required check counts as passing.
   deployment_status:
 
 permissions:
@@ -31,7 +34,6 @@ defaults:
 jobs:
   review-gate:
     name: Review Gate
-    if: github.event_name != 'deployment_status' || contains(fromJSON('["success", "failure", "error"]'), github.event.deployment_status.state)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
