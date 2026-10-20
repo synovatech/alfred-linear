@@ -18,6 +18,7 @@ function makeMockIssue(overrides: Record<string, unknown> = {}) {
     team: Promise.resolve({ name: 'Kindred' }),
     attachments: vi.fn().mockResolvedValue({ nodes: [] }),
     children: vi.fn().mockResolvedValue({ nodes: [] }),
+    labels: vi.fn().mockResolvedValue({ nodes: [] }),
     ...overrides,
   };
 }
@@ -108,5 +109,44 @@ describe('getIssueDetail', () => {
     } as any);
     const md = await getIssueDetail('KIN-1');
     expect(md).not.toContain('Attachments');
+  });
+
+  it('lists labels comma-separated, alphabetically, with group prefix', async () => {
+    const issue = makeMockIssue({
+      labels: vi.fn().mockResolvedValue({
+        nodes: [
+          { name: 'Frontend', parent: undefined },
+          { name: 'Bug', parent: Promise.resolve({ name: 'Type' }) },
+          { name: 'Backend', parent: undefined },
+        ],
+      }),
+    });
+    vi.mocked(getClient).mockResolvedValue({
+      issues: vi.fn().mockResolvedValue({ nodes: [issue] }),
+    } as any);
+    const md = await getIssueDetail('KIN-1');
+    expect(md).toContain('* **Labels:** Backend, Frontend, Type: Bug');
+  });
+
+  it('places labels directly after assignee', async () => {
+    const issue = makeMockIssue({
+      labels: vi.fn().mockResolvedValue({ nodes: [{ name: 'Bug', parent: undefined }] }),
+      children: vi.fn().mockResolvedValue({
+        nodes: [{ identifier: 'KIN-2', title: 'Sub task', url: 'https://linear.app/kindred/issue/KIN-2' }],
+      }),
+    });
+    vi.mocked(getClient).mockResolvedValue({
+      issues: vi.fn().mockResolvedValue({ nodes: [issue] }),
+    } as any);
+    const md = await getIssueDetail('KIN-1');
+    expect(md).toContain('* **Assignee:** Adam Horner\n* **Labels:** Bug\n* **Sub-issues:**');
+  });
+
+  it('omits labels line when empty', async () => {
+    vi.mocked(getClient).mockResolvedValue({
+      issues: vi.fn().mockResolvedValue({ nodes: [makeMockIssue()] }),
+    } as any);
+    const md = await getIssueDetail('KIN-1');
+    expect(md).not.toContain('Labels');
   });
 });
