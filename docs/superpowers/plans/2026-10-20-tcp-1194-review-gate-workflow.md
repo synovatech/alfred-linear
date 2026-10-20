@@ -4,7 +4,7 @@ linear: TCP-1194
 
 # TCP-1194 Review Gate Workflow Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add the org-standard Review Gate workflow verbatim, and list the repo's Linear project in `CLAUDE.md`.
 
@@ -33,29 +33,29 @@ linear: TCP-1194
 **Files:**
 - Create: `.github/workflows/review-gate.yml`
 
-- [ ] **Step 1: Confirm it's missing**
+- [x] **Step 1: Confirm it's missing**
 
 Run: `test -e .github/workflows/review-gate.yml; echo $?`
 Expected: `1`
 
-- [ ] **Step 2: Copy it from kindred-explore `main`**
+- [x] **Step 2: Copy it from kindred-explore `main`**
 
 ```bash
 mkdir -p .github/workflows
 gh api repos/synovatech/kindred-explore/contents/.github/workflows/review-gate.yml --jq .content | base64 -d > .github/workflows/review-gate.yml
 ```
 
-- [ ] **Step 3: Verify byte-identical**
+- [x] **Step 3: Verify byte-identical**
 
 Run: `diff <(gh api repos/synovatech/kindred-explore/contents/.github/workflows/review-gate.yml --jq .content | base64 -d) .github/workflows/review-gate.yml && shasum -a256 .github/workflows/review-gate.yml`
 Expected: no diff output; SHA-256 `debe5dd4…d639` (if different, report the drift).
 
-- [ ] **Step 4: Lint**
+- [x] **Step 4: Lint**
 
 Run: `actionlint .github/workflows/review-gate.yml` (ShellCheck on PATH)
 Expected: no output, exit 0.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add .github/workflows/review-gate.yml
