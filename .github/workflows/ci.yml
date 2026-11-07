@@ -1,0 +1,32 @@
+# Not a required check (the org ruleset only requires Review Gate): Autoapprove
+# won't approve a PR unless CI is green after the last push.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    name: Typecheck, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: make setup
+
+      - name: Typecheck and test
+        run: make check
+
+      # No Alfred workflow here, so build.mjs writes to dist/workflow/.
+      - name: Build
+        run: npm run build

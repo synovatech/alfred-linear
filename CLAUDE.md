@@ -7,11 +7,17 @@ An Alfred 5 workflow that searches, views, and creates Linear issues. A single e
 ## Commands
 
 ```bash
-npm run build     # compile TS + copy workflow/info.plist + workflow/icon.png → workflow-folder/
+make setup        # npm ci: makes a fresh checkout or worktree ready (idempotent, no prompts)
+make check        # the baseline checks: npm run typecheck, then npm test
+npm run build     # compile TS + copy workflow/info.plist + workflow/icon.png → workflow-folder/ (main checkout) or dist/workflow/ (worktree)
 npm test          # vitest, all SDK calls mocked
 npm run sync      # pull Alfred UI edits back: workflow-folder/{info.plist,icon.png} → workflow/
 npm run typecheck # tsc --noEmit
 ```
+
+The baseline checks are `make check`. There's no lint step and no env file; tests need no network or running services. CI (`.github/workflows/ci.yml`) runs `make setup`, `make check` and `npm run build` on every PR. It isn't a required check, but Autoapprove won't approve a PR unless it's green.
+
+**Worktrees and the live workflow.** `workflow-folder` is a tracked symlink to the installed Alfred workflow, so it points at the same live folder from every checkout. `npm run build` only installs into it from the main checkout; in a linked worktree (or anywhere the symlink target is missing, such as CI) it builds into `dist/workflow/` instead. Never run `npm run sync` from a worktree: it copies the live workflow's files over the branch's `workflow/`.
 
 ## Linear
 - Project: Alfred Linear — https://linear.app/synovatech/project/alfred-linear-9e8ed2cbcc32
@@ -93,7 +99,7 @@ After editing `info.plist` programmatically, Alfred needs to reload. Close and r
 
 ## Build direction vs sync direction
 
-`npm run build` copies **workflow/ → workflow-folder/** (repo is source of truth).  
+`npm run build` copies **workflow/ → workflow-folder/** (repo is source of truth; `dist/workflow/` from a worktree, see Commands).  
 `npm run sync` copies **workflow-folder/ → workflow/** (captures Alfred UI edits for committing).
 
 If you have unsaved Alfred UI changes, run `npm run sync` **before** `npm run build`, or the build will overwrite them.
