@@ -1,6 +1,7 @@
 {
   "name": "alfred-linear",
   "version": "1.0.0",
+  "packageManager": "npm@11.19.1",
   "scripts": {
     "build": "node build.mjs",
     "sync": "cp workflow-folder/info.plist workflow/info.plist && cp workflow-folder/icon.png workflow/icon.png",
@@ -9,13 +10,13 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@linear/sdk": "^86.0.0",
-    "date-fns": "^4.4.0"
+    "@linear/sdk": "86.0.0",
+    "date-fns": "4.4.0"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
-    "esbuild": "*",
-    "typescript": "^5.0.0",
-    "vitest": "^1.0.0"
+    "@types/node": "20.19.41",
+    "esbuild": "0.28.0",
+    "typescript": "5.9.3",
+    "vitest": "1.6.1"
   }
 }
