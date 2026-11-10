@@ -1,10 +1,38 @@
-# Required status check that passes once Claude Code Review has reviewed any
-# commit on the PR and, in repos that deploy to Vercel, the head commit's
-# Vercel deployment has succeeded. Claude reviews once per PR, so requiring its
-# own check blocked every PR that received a push after the review, and
-# requiring Vercel's check blocked repos that never deploy there. Not filtered
-# by base branch: the ruleset targets each repo's default branch, which isn't
-# always main. The same file works unchanged in every Synova repo.
+# Publishes `Review Gate` as a commit status, not a check run. A status with
+# the same context replaces the previous one, so the latest evaluation wins; a
+# failed check run stays on its commit and, being required, kept blocking merges
+# after the cause was fixed. The job below is deliberately not named
+# `Review Gate`, or GitHub would require its check run as well.
+#
+# State, evaluated for the PR head commit:
+#   failure  only when a `Vercel...` status failed or errored.
+#   pending  until Autoreview (synova-autoreview[bot]) has reviewed any commit
+#            on the PR and, in repos that deploy to Vercel, every `Vercel...`
+#            status has succeeded. Any commit, not the head: Autoreview reviews
+#            on demand rather than on every push.
+#   success  otherwise, after a 30-second settle in Vercel repos so slower
+#            projects can post their status first.
+# A repo counts as deploying to Vercel if the default branch head or this commit
+# has a `Vercel...` status.
+#
+# Triggers: `status` (not `deployment_status`) because Vercel posts statuses in
+# every repo but GitHub Deployments only in some. Statuses posted with
+# GITHUB_TOKEN don't trigger workflows, so publishing ours can't loop. Runs are
+# serialized per commit (cancel-in-progress is false) so a stale evaluation
+# can't overwrite a newer one. `status` and `deployment_status` events run the
+# copy of this file on the default branch.
+#
+# Fail safe: if evaluation crashes, a best-effort `pending` is posted;
+# otherwise the previous status stays.
+#
+# Not filtered by base branch: the ruleset targets each repo's default branch,
+# which isn't always main. The same file works unchanged in every Synova repo.
+#
+# Known limitation: the status is stored per commit, but the review rule is per
+# PR. If two open PRs share a head commit, the last evaluation decides the
+# status for both, so a PR that was never reviewed can show success because
+# another PR on that commit was. Accepted: it is rare, and the ruleset still
+# requires an approving review from a person.
 name: Review Gate
 
 on:
@@ -12,19 +40,12 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
   pull_request_review:
     types: [submitted]
-  # Re-runs Review Gate when a Vercel deployment finishes late or is
-  # redeployed. Every state runs the full gate, which waits for Vercel itself:
-  # filtering states with a job-level `if` would leave a skipped run, and a
-  # skipped required check counts as passing.
-  deployment_status:
+  # Vercel statuses (filtered by the job's `if`); not our own, see above.
+  status:
 
 permissions:
-  deployments: read
+  statuses: write
   pull-requests: read
-  statuses: read
-
-# No concurrency group: runs are idempotent, and a cancelled run would leave a
-# cancelled Review Gate check on the head commit beside the newer result.
 
 defaults:
   run:
@@ -32,20 +53,40 @@ defaults:
     shell: bash
 
 jobs:
-  review-gate:
-    name: Review Gate
+  # Not named `Review Gate`: a check run with that name would be required too.
+  evaluate:
+    name: Review Gate (evaluate)
+    if: github.event_name != 'status' || startsWith(github.event.context, 'Vercel')
+    # Per commit, queued rather than cancelled, so the last run to finish is the
+    # last to post.
+    concurrency:
+      group: review-gate-${{ github.event.pull_request.head.sha || github.event.sha }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 5
     env:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
-      SHA: ${{ github.event.pull_request.head.sha || github.event.deployment.sha }}
+      SHA: ${{ github.event.pull_request.head.sha || github.event.sha }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
       - name: Find the PR
         id: pr
         env:
           PR: ${{ github.event.pull_request.number }}
         run: |
+          # Fail safe, as in the next step: a failed lookup mustn't leave an earlier success standing.
+          fail_safe() {
+            local code=$? description="Review Gate couldn't evaluate; re-run this job"
+            if [ "$code" -ne 0 ] && gh api "repos/$REPO/statuses/$SHA" -f state=pending \
+              -f context='Review Gate' -f description="$description" -f target_url="$RUN_URL" > /dev/null; then
+              echo "Review Gate: pending ($description)"
+            fi
+            exit "$code"
+          }
+          trap fail_safe EXIT
+
           if [ -z "$PR" ]; then
             PR=$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '[.[] | select(.state == "open" and .head.sha == env.SHA)][0].number // empty')
           fi
@@ -54,57 +95,86 @@ jobs:
           fi
           echo "number=$PR" >> "$GITHUB_OUTPUT"
 
-      - name: Require a Claude Code Review on this PR
+      - name: Evaluate and post the status
         if: steps.pr.outputs.number != ''
         env:
           PR: ${{ steps.pr.outputs.number }}
         run: |
-          # One line per Claude review across all pages; --jq runs per page.
-          reviews=$(gh api --paginate "repos/$REPO/pulls/$PR/reviews" \
-            --jq '.[] | select(.user.login == "claude[bot]") | .id' | wc -l)
-          if [ "$reviews" -eq 0 ]; then
-            echo "::error::Claude Code Review hasn't reviewed this PR yet. It runs when the PR is opened or marked ready for review; comment '@claude review' to request one."
-            exit 1
-          fi
-          echo "Claude Code Review has reviewed this PR ($reviews review(s))."
+          posted=
+          post() {
+            local state=$1 description=${2:0:140}
+            gh api "repos/$REPO/statuses/$SHA" -f state="$state" -f context='Review Gate' \
+              -f description="$description" -f target_url="$RUN_URL" > /dev/null || return 1
+            posted=1
+            echo "Review Gate: $state ($description)"
+          }
+          # Fail safe: never leave an earlier success standing after a crash.
+          trap 'code=$?; if [ "$code" -ne 0 ] && [ -z "$posted" ]; then post pending "Review Gate couldn'"'"'t evaluate; re-run this job" || true; fi; exit "$code"' EXIT
 
-      # A repo counts as deploying to Vercel if Vercel has ever created a
-      # deployment in it. Monorepos get one "Vercel – <project>" status per
-      # project, so every status whose context starts with "Vercel" must pass,
-      # and the set must hold for two polls in a row in case a slower project
-      # hasn't posted yet.
-      - name: Require a successful Vercel deployment, if this repo deploys there
-        if: steps.pr.outputs.number != ''
-        run: |
-          deployments=$(gh api "repos/$REPO/deployments?per_page=100" \
-            --jq '[.[] | select(.creator.login == "vercel[bot]")] | length')
-          if [ "$deployments" -eq 0 ]; then
-            echo "This repo doesn't deploy to Vercel; skipping."
+          # Sorted "context=state" list of the Vercel statuses on a ref.
+          vercel_statuses() {
+            gh api "repos/$REPO/commits/$1/status" \
+              --jq '[.statuses[] | select(.context | startswith("Vercel")) | "\(.context)=\(.state)"] | sort | join(",")'
+          }
+          has_failure() {
+            case ",$1," in *=failure,*|*=error,*) return 0 ;; esac
+            return 1
+          }
+
+          vercel=$(vercel_statuses "$SHA")
+          if has_failure "$vercel"; then
+            post failure "Vercel deployment failed: $vercel"
             exit 0
           fi
 
-          deadline=$((SECONDS + 15 * 60))
-          last_success=
-          while [ "$SECONDS" -lt "$deadline" ]; do
-            # A failed call counts as "no status yet"; the deadline decides.
-            statuses=$(gh api "repos/$REPO/commits/$SHA/status" \
-              --jq '[.statuses[] | select(.context | startswith("Vercel")) | "\(.context)=\(.state)"] | sort | join(",")') \
-              || { echo "::warning::Couldn't read commit statuses; retrying."; statuses=; }
-            case ",$statuses," in
-              *=failure,*|*=error,*)
-                echo "::error::Vercel deployment failed for $SHA ($statuses)."
-                exit 1 ;;
-              ,,|*=pending,*)
-                last_success= ;;
-              *)
-                if [ "$statuses" = "$last_success" ]; then
-                  echo "Vercel deployment succeeded for $SHA ($statuses)."
-                  exit 0
-                fi
-                last_success=$statuses ;;
+          # One line per Autoreview review across all pages; --jq runs per page.
+          reviews=$(gh api --paginate "repos/$REPO/pulls/$PR/reviews" \
+            --jq '.[] | select(.user.login == "synova-autoreview[bot]") | .id' | wc -l)
+
+          # A repo deploys to Vercel if this commit or the default branch's head has a Vercel status.
+          deploys=
+          if [ -n "$vercel" ]; then
+            deploys=1
+            echo "This repo deploys to Vercel; checked the Vercel statuses on $SHA: $vercel"
+          else
+            on_default=$(vercel_statuses "$DEFAULT_BRANCH")
+            if [ -n "$on_default" ]; then
+              deploys=1
+              echo "This repo deploys to Vercel; checked the Vercel statuses on $DEFAULT_BRANCH: $on_default"
+            else
+              echo "This repo doesn't deploy to Vercel."
+            fi
+          fi
+
+          waiting=
+          hint=
+          if [ "$reviews" -eq 0 ]; then
+            waiting="Autoreview"
+            hint="Add the Autoreview label to its Linear ticket."
+          fi
+          if [ -n "$deploys" ]; then
+            case ",$vercel," in
+              ,,|*=pending,*) waiting="${waiting:+$waiting, }Vercel deployment" ;;
             esac
-            echo "Waiting for Vercel (statuses: ${statuses:-none yet})..."
-            sleep 20
-          done
-          echo "::error::No successful Vercel deployment for $SHA after 15 minutes."
-          exit 1
+          fi
+          if [ -n "$waiting" ]; then
+            post pending "Waiting for: $waiting${hint:+. $hint}"
+            exit 0
+          fi
+
+          if [ -n "$deploys" ]; then
+            # Give slower Vercel projects time to post, then require the same set.
+            sleep 30
+            settled=$(vercel_statuses "$SHA")
+            if has_failure "$settled"; then
+              post failure "Vercel deployment failed: $settled"
+              exit 0
+            fi
+            if [ "$settled" != "$vercel" ]; then
+              post pending "Waiting for the Vercel statuses to settle"
+              exit 0
+            fi
+            post success "Autoreview has reviewed; Vercel deployed"
+          else
+            post success "Autoreview has reviewed; no Vercel deployment in this repo"
+          fi
