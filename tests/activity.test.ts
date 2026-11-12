@@ -336,7 +336,7 @@ describe('history events', () => {
 
   it('drops an entry whose rendering throws without blanking the section', async () => {
     const bad = makeEntry({ toStateId: 's2' });
-    Object.defineProperty(bad, 'toState', {
+    Object.defineProperty(bad, 'addedLabels', {
       get() {
         throw new Error('x');
       },
@@ -348,8 +348,29 @@ describe('history events', () => {
       }),
     );
     const text = lines.join('\n');
+    expect(text).not.toContain('moved to');
     expect(text).toContain('updated the description');
     expect(text).toContain('still here');
     expect(text).not.toContain('_Activity unavailable_');
+  });
+
+  it('uses embedded actors without fetching the actor', async () => {
+    const spy = vi.fn().mockResolvedValue({ displayName: 'Other' });
+    const e = makeEntry({ updatedDescription: true, actors: [{ displayName: 'Embedded' }] });
+    Object.defineProperty(e, 'actor', { get: spy });
+    const lines = await renderActivity(makeIssue({ history: conn([e]) }));
+    expect(lines[2]).toBe(`* **Embedded** updated the description · ${ts}`);
+    expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+describe('created line actor', () => {
+  it('prefers the human creator over the bot actor', async () => {
+    const lines = await renderActivity(makeIssue({ botActor: { name: 'Claude' } }));
+    expect(lines[1]).toBe('* **Adam Horner** created the issue · 1 Nov 2026, 09:00');
+  });
+  it('shows Someone when the creator lookup fails', async () => {
+    const lines = await renderActivity(makeIssue({ creator: Promise.reject(new Error('x')) }));
+    expect(lines[1]).toContain('**Someone**');
   });
 });

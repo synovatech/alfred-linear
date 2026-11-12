@@ -69,7 +69,9 @@ export async function historyLines(entry: IssueHistory, lookup: Lookup): Promise
 
     const [who, fromState, toState, fromAssignee, toAssignee, fromProject, toProject, attachment] =
       await Promise.all([
-        actorName(entry.botActor, entry.actorId, () => entry.actor, lookup),
+        entry.botActor?.name || entry.actors?.[0]?.displayName
+          ? Promise.resolve(entry.botActor?.name || entry.actors![0].displayName)
+          : actorName(entry.botActor, entry.actorId, () => entry.actor, lookup),
         named('state', entry.fromStateId, () => entry.fromState),
         named('state', entry.toStateId, () => entry.toState),
         user(entry.fromAssigneeId, () => entry.fromAssignee),
@@ -133,7 +135,10 @@ export async function renderActivity(issue: Issue): Promise<string[]> {
     const lookup = makeLookup();
 
     const created = async (): Promise<ActivityItem> => {
-      const who = await actorName(issue.botActor, issue.creatorId, () => issue.creator, lookup);
+      // A human creator wins over the bot (an issue made via an OAuth app carries both).
+      const who = issue.creatorId
+        ? await actorName(null, issue.creatorId, () => issue.creator, lookup)
+        : (issue.botActor?.name ?? 'Linear');
       return {
         createdAt: issue.createdAt,
         order: 0,

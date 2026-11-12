@@ -12,6 +12,9 @@ export async function getIssueDetail(identifier: string): Promise<string> {
   const issue = results.nodes[0];
   if (!issue) throw new Error(`Issue ${identifier} not found`);
 
+  // Kick off the Activity fetches now so they overlap the other lookups; it never rejects.
+  const activity = renderActivity(issue);
+
   const [state, assignee, team, attachmentsConn, childrenConn, labelsConn] = await Promise.all([
     issue.state,
     issue.assignee,
@@ -63,7 +66,7 @@ export async function getIssueDetail(identifier: string): Promise<string> {
   }
 
   lines.push('', issue.description?.trim() || '_No description_');
-  lines.push('', ...(await renderActivity(issue)));
+  lines.push('', ...(await activity));
 
   return lines.join('\n');
 }

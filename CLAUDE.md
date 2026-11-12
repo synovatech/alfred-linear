@@ -34,7 +34,7 @@ src/
   config.ts         LINEAR_CLIENT_ID, OAUTH_CALLBACK_PORT, scopes
   commands/
     search.ts       → AlfredItem[]   (stdout: Alfred JSON via alfredOutput)
-    detail.ts       → Markdown str   (stdout: plain text to Text View)
+    detail.ts       → Markdown str   (stdout: plain text to Text View; ends with the Activity section)
     create.ts       → URL str        (stdout: plain URL to Open URL node)
 workflow/           Tracked source-of-truth copies of Alfred assets
   info.plist
