@@ -52,9 +52,9 @@ linear: TCP-1289
   - Internal (exported for Task 2): `type Lookup = <T>(key: string, fetch: () => Promise<T> | undefined) => Promise<T | undefined>` — memoised by `key`, rejected fetches resolve to `undefined`; a `makeLookup(): Lookup` factory. And `async function historyLines(entry: IssueHistory, lookup: Lookup): Promise<string[]>` returning `[]` in this task (Task 2 fills it in).
   - Actor helper: `async function actorName(botActor: { name?: string | null } | null | undefined, userId: string | undefined | null, fetchUser: () => Promise<User> | undefined, lookup: Lookup): Promise<string>` → `botActor.name` → user `displayName` (key `user:<id>`) → `Someone` if id set but lookup gave nothing → `Linear`.
 
-- [ ] **Step 1: Add test-mock defaults.** In `tests/commands/detail.test.ts` `makeMockIssue()`, add `creator: Promise.resolve({ displayName: 'Adam Horner' })`, `creatorId: 'u-adam'`, `history: vi.fn().mockResolvedValue({ nodes: [], pageInfo: { hasNextPage: false } })`, `comments: vi.fn().mockResolvedValue({ nodes: [], pageInfo: { hasNextPage: false } })`. Run `npm test` — existing tests still pass.
+- [x] **Step 1: Add test-mock defaults.** In `tests/commands/detail.test.ts` `makeMockIssue()`, add `creator: Promise.resolve({ displayName: 'Adam Horner' })`, `creatorId: 'u-adam'`, `history: vi.fn().mockResolvedValue({ nodes: [], pageInfo: { hasNextPage: false } })`, `comments: vi.fn().mockResolvedValue({ nodes: [], pageInfo: { hasNextPage: false } })`. Run `npm test` — existing tests still pass.
 
-- [ ] **Step 2: Write failing tests** in `tests/activity.test.ts` (build mock issues inline; a small local `makeIssue(overrides)` helper mirroring the detail one is fine) and in `tests/commands/detail.test.ts`:
+- [x] **Step 2: Write failing tests** in `tests/activity.test.ts` (build mock issues inline; a small local `makeIssue(overrides)` helper mirroring the detail one is fine) and in `tests/commands/detail.test.ts`:
   - `formatTimestamp(new Date('2026-11-12T14:05:00Z'))` → `'12 Nov 2026, 14:05'`.
   - `truncate('a'.repeat(81))` → `'a'.repeat(79) + '…'`, length 80; `truncate('short')` → `'short'`; an 80-char string unchanged.
   - `renders only the created line when there is no activity`: issue `createdAt` 2026-11-01T09:00Z → lines equal `['## Activity', '* **Adam Horner** created the issue · 1 Nov 2026, 09:00']`.
@@ -69,13 +69,13 @@ linear: TCP-1289
   - `fetches 100 of each`: `history` and `comments` called with `{ first: 100 }`.
   - detail test `appends the Activity section after the description`: index of `'## Activity'` > index of the description text.
 
-- [ ] **Step 3: Run** `npx vitest run tests/activity.test.ts tests/commands/detail.test.ts` — expect failures (module missing).
+- [x] **Step 3: Run** `npx vitest run tests/activity.test.ts tests/commands/detail.test.ts` — expect failures (module missing).
 
-- [ ] **Step 4: Implement `src/activity.ts`** per Interfaces and the spec. Items are `{ createdAt: Date; order: number; lines: string[] }`; sort by `createdAt` then `order` (created = 0, then history entries, then comments, in input order). Comment item lines: `['', header, '', body, '']`. Join everything flat; collapse nothing else. Use SDK types (`Issue`, `IssueHistory`, `Comment`, `User` from `@linear/sdk`). In `detail.ts`, after the description push, `lines.push('', ...(await renderActivity(issue)))`. Add `env: { TZ: 'UTC' }` to `vitest.config.mts`.
+- [x] **Step 4: Implement `src/activity.ts`** per Interfaces and the spec. Items are `{ createdAt: Date; order: number; lines: string[] }`; sort by `createdAt` then `order` (created = 0, then history entries, then comments, in input order). Comment item lines: `['', header, '', body, '']`. Join everything flat; collapse nothing else. Use SDK types (`Issue`, `IssueHistory`, `Comment`, `User` from `@linear/sdk`). In `detail.ts`, after the description push, `lines.push('', ...(await renderActivity(issue)))`. Add `env: { TZ: 'UTC' }` to `vitest.config.mts`.
 
-- [ ] **Step 5: Run** `make check` — all pass (typecheck + tests).
+- [x] **Step 5: Run** `make check` — all pass (typecheck + tests).
 
-- [ ] **Step 6: Commit** `feat: add the Activity section to the detail view [TCP-1289]`, tick this task's boxes, push.
+- [x] **Step 6: Commit** `feat: add the Activity section to the detail view [TCP-1289]`, tick this task's boxes, push.
 
 ### Task 2: History event lines, bot actors, de-duplication, docs
 
