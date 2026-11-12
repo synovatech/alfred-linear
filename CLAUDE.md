@@ -30,6 +30,7 @@ src/
   auth.ts           OAuth PKCE, token storage, refresh
   linear.ts         getClient() with auto-refresh
   alfred.ts         Alfred JSON output helpers
+  activity.ts       Activity section for --detail (history + comments, merged)
   config.ts         LINEAR_CLIENT_ID, OAUTH_CALLBACK_PORT, scopes
   commands/
     search.ts       → AlfredItem[]   (stdout: Alfred JSON via alfredOutput)
@@ -53,6 +54,8 @@ workflow-folder/    Symlink → Alfred.alfredpreferences/workflows/user.workflow
 | `--auth` | nothing (process exits) | Alfred waits for exit |
 
 Issue result items also carry modifier actions, routed by Script Filter connections in `info.plist`: **⌘↩** opens the issue URL (`{var:url}`), **⌥↩** copies the issue's `branchName` to the clipboard (item `mods.alt.arg` → Copy to Clipboard output node). An item-level `mods` entry only works if there's a matching modifier connection, so add both together.
+
+The `--detail` Markdown ends with a `## Activity` section (`src/activity.ts`): the created line, history events and comments merged oldest first. It is fail-soft: a failed fetch shows `_Activity unavailable_`, and a broken history entry is skipped.
 
 Errors in `--detail` must be plain text (shown in Text View). Errors in `--create` have no good outlet — they surface as a garbled URL attempt. The Script Filter catch-all uses `alfredOutput`.
 
@@ -115,7 +118,7 @@ If you have unsaved Alfred UI changes, run `npm run sync` **before** `npm run bu
 
 ## Testing conventions
 
-All tests mock `../../src/linear` with `{ getClient: vi.fn() }`. The mock client needs all methods used by the command under test (`issues`, `attachments`, `children`, etc.). `makeMockIssue()` in `detail.test.ts` is the reference for what shape the SDK returns.
+All tests mock `../../src/linear` with `{ getClient: vi.fn() }`. The mock client needs all methods used by the command under test (`issues`, `attachments`, `children`, etc.). `makeMockIssue()` in `detail.test.ts` is the reference for what shape the SDK returns; it also needs `history` and `comments` (connections with `pageInfo`) and `creator`. `vitest.config.mts` sets `TZ=UTC` so Activity timestamps are deterministic.
 
 ---
 

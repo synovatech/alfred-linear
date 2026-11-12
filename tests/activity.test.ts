@@ -139,3 +139,217 @@ describe('renderActivity', () => {
     expect(issue.comments).toHaveBeenCalledWith({ first: 100 });
   });
 });
+
+describe('history events', () => {
+  const at = new Date('2026-11-05T11:00:00Z');
+  const ts = '5 Nov 2026, 11:00';
+
+  function makeEntry(overrides: Record<string, unknown> = {}) {
+    return {
+      createdAt: at,
+      actorId: 'u-adam',
+      actor: Promise.resolve({ displayName: 'Adam' }),
+      botActor: null,
+      ...overrides,
+    };
+  }
+
+  async function eventLines(overrides: Record<string, unknown>) {
+    const lines = await renderActivity(makeIssue({ history: conn([makeEntry(overrides)]) }));
+    return lines
+      .slice(2)
+      .map((l) => l.replace('* **Adam** ', '').replace(` · ${ts}`, ''));
+  }
+
+  it('renders status changes', async () => {
+    expect(
+      await eventLines({
+        fromStateId: 's1',
+        fromState: Promise.resolve({ name: 'In Definition' }),
+        toStateId: 's2',
+        toState: Promise.resolve({ name: 'In Progress' }),
+      }),
+    ).toEqual(['moved from In Definition to In Progress']);
+    expect(
+      await eventLines({ toStateId: 's2', toState: Promise.resolve({ name: 'In Progress' }) }),
+    ).toEqual(['moved to In Progress']);
+  });
+
+  it('shows Unknown when a state lookup fails', async () => {
+    expect(
+      await eventLines({ toStateId: 's2', toState: Promise.reject(new Error('x')) }),
+    ).toEqual(['moved to Unknown']);
+  });
+
+  it('renders assignee changes', async () => {
+    const adam = Promise.resolve({ displayName: 'Adam' });
+    const jenine = Promise.resolve({ displayName: 'Jenine' });
+    expect(
+      await eventLines({ fromAssigneeId: 'u1', fromAssignee: adam, toAssigneeId: 'u2', toAssignee: jenine }),
+    ).toEqual(['reassigned from Adam to Jenine']);
+    expect(await eventLines({ toAssigneeId: 'u2', toAssignee: jenine })).toEqual(['assigned to Jenine']);
+    expect(await eventLines({ fromAssigneeId: 'u1', fromAssignee: adam })).toEqual(['unassigned Adam']);
+  });
+
+  it('renders label changes', async () => {
+    expect(await eventLines({ addedLabels: [{ name: 'Autofix' }] })).toEqual(['added label Autofix']);
+    expect(await eventLines({ addedLabels: [{ name: 'A' }, { name: 'B' }] })).toEqual(['added labels A, B']);
+    expect(await eventLines({ removedLabels: [{ name: 'Autofix' }] })).toEqual(['removed label Autofix']);
+  });
+
+  it('renders title changes, truncating long titles', async () => {
+    expect(await eventLines({ fromTitle: 'Old', toTitle: 'New title' })).toEqual([
+      'changed the title to "New title"',
+    ]);
+    expect(await eventLines({ fromTitle: 'Old', toTitle: 'a'.repeat(100) })).toEqual([
+      `changed the title to "${'a'.repeat(79)}…"`,
+    ]);
+  });
+
+  it('renders priority changes', async () => {
+    expect(await eventLines({ fromPriority: 4, toPriority: 2 })).toEqual([
+      'changed priority from Low to High',
+    ]);
+    expect(await eventLines({ toPriority: 1 })).toEqual(['set priority to Urgent']);
+  });
+
+  it('renders project changes', async () => {
+    const alpha = Promise.resolve({ name: 'Alpha' });
+    const beta = Promise.resolve({ name: 'Beta' });
+    expect(
+      await eventLines({ fromProjectId: 'p1', fromProject: alpha, toProjectId: 'p2', toProject: beta }),
+    ).toEqual(['moved from project Alpha to Beta']);
+    expect(await eventLines({ toProjectId: 'p2', toProject: beta })).toEqual(['added to project Beta']);
+    expect(await eventLines({ fromProjectId: 'p1', fromProject: alpha })).toEqual([
+      'removed from project Alpha',
+    ]);
+  });
+
+  it('renders relation changes', async () => {
+    expect(
+      await eventLines({
+        relationChanges: [
+          { identifier: 'TCP-1', type: 'ba' },
+          { identifier: 'TCP-2', type: 'br' },
+        ],
+      }),
+    ).toEqual(['added a relation to TCP-1', 'removed a relation to TCP-2']);
+  });
+
+  it('renders linked attachments, falling back when the lookup fails', async () => {
+    expect(
+      await eventLines({
+        attachmentId: 'a1',
+        attachment: Promise.resolve({ title: 'PR #9', url: 'https://github.com/x/pull/9' }),
+      }),
+    ).toEqual(['linked [PR #9](https://github.com/x/pull/9)']);
+    expect(
+      await eventLines({ attachmentId: 'a1', attachment: Promise.reject(new Error('x')) }),
+    ).toEqual(['linked an attachment']);
+  });
+
+  it('renders description updates', async () => {
+    expect(await eventLines({ updatedDescription: true })).toEqual(['updated the description']);
+  });
+
+  it('renders one line per change in a multi-change entry, status first', async () => {
+    const lines = await renderActivity(
+      makeIssue({
+        history: conn([
+          makeEntry({
+            toAssigneeId: 'u2',
+            toAssignee: Promise.resolve({ displayName: 'Jenine' }),
+            toStateId: 's2',
+            toState: Promise.resolve({ name: 'Done' }),
+          }),
+        ]),
+      }),
+    );
+    expect(lines.slice(2)).toEqual([
+      `* **Adam** moved to Done · ${ts}`,
+      `* **Adam** assigned to Jenine · ${ts}`,
+    ]);
+  });
+
+  it('skips unknown history entries', async () => {
+    const lines = await renderActivity(
+      makeIssue({ history: conn([makeEntry({ toCycleId: 'c', toDueDate: '2026-12-01' })]) }),
+    );
+    expect(lines).toHaveLength(2);
+    expect(lines.join('\n')).not.toContain('Unknown');
+  });
+
+  it('shows the bot name on bot events', async () => {
+    const attachment = {
+      attachmentId: 'a1',
+      attachment: Promise.resolve({ title: 'PR', url: 'https://x' }),
+    };
+    const lines = await renderActivity(
+      makeIssue({
+        history: conn([
+          makeEntry({ ...attachment, botActor: { name: 'GitHub' }, actorId: undefined, actor: undefined }),
+          makeEntry({ ...attachment, botActor: null, actorId: undefined, actor: undefined }),
+        ]),
+      }),
+    );
+    expect(lines[2]).toBe(`* **GitHub** linked [PR](https://x) · ${ts}`);
+    expect(lines[3]).toBe(`* **Linear** linked [PR](https://x) · ${ts}`);
+  });
+
+  it('falls back to Someone when an actor lookup fails', async () => {
+    const lines = await renderActivity(
+      makeIssue({
+        history: conn([makeEntry({ actor: Promise.reject(new Error('x')), updatedDescription: true })]),
+      }),
+    );
+    expect(lines[2]).toBe(`* **Someone** updated the description · ${ts}`);
+  });
+
+  it('merges events and comments oldest first', async () => {
+    const comment = (h: number) =>
+      makeComment({ createdAt: new Date(`2026-11-05T${h}:00:00Z`), body: `c${h}` });
+    const event = (h: number) =>
+      makeEntry({ createdAt: new Date(`2026-11-05T${h}:00:00Z`), updatedDescription: true });
+    const text = (
+      await renderActivity(
+        makeIssue({
+          history: conn([event(13), event(11)]),
+          comments: conn([comment(12), comment(10)]),
+        }),
+      )
+    ).join('\n');
+    const order = ['c10', '5 Nov 2026, 11:00', 'c12', '5 Nov 2026, 13:00'].map((s) => text.indexOf(s));
+    expect(order.every((i) => i >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+
+  it('looks up each user once', async () => {
+    const spy = vi.fn().mockResolvedValue({ displayName: 'Adam' });
+    const entry = () => {
+      const e = makeEntry({ updatedDescription: true });
+      Object.defineProperty(e, 'actor', { get: spy });
+      return e;
+    };
+    await renderActivity(makeIssue({ history: conn([entry(), entry()]) }));
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('drops an entry whose rendering throws without blanking the section', async () => {
+    const bad = makeEntry({ toStateId: 's2' });
+    Object.defineProperty(bad, 'toState', {
+      get() {
+        throw new Error('x');
+      },
+    });
+    const lines = await renderActivity(
+      makeIssue({
+        history: conn([bad, makeEntry({ updatedDescription: true })]),
+        comments: conn([makeComment({ body: 'still here' })]),
+      }),
+    );
+    const text = lines.join('\n');
+    expect(text).toContain('updated the description');
+    expect(text).toContain('still here');
+    expect(text).not.toContain('_Activity unavailable_');
+  });
+});

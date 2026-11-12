@@ -53,9 +53,75 @@ export async function actorName(
   return 'Linear';
 }
 
-// Task 2 fills this in.
-export async function historyLines(_entry: IssueHistory, _lookup: Lookup): Promise<string[]> {
-  return [];
+const PRIORITIES = ['No priority', 'Urgent', 'High', 'Medium', 'Low'];
+const priorityName = (n: number) => PRIORITIES[n] ?? `Priority ${n}`;
+
+/** One line per recognised change in a history entry; fail-soft, so a broken entry yields no lines. */
+export async function historyLines(entry: IssueHistory, lookup: Lookup): Promise<string[]> {
+  try {
+    const user = (id: string | null | undefined, fetch: () => Promise<User> | undefined) =>
+      id ? lookup(`user:${id}`, fetch).then((u) => u?.displayName ?? 'Someone') : undefined;
+    const named = <T extends { name: string }>(
+      kind: string,
+      id: string | null | undefined,
+      fetch: () => Promise<T> | undefined,
+    ) => (id ? lookup(`${kind}:${id}`, fetch).then((r) => r?.name ?? 'Unknown') : undefined);
+
+    const [who, fromState, toState, fromAssignee, toAssignee, fromProject, toProject, attachment] =
+      await Promise.all([
+        actorName(entry.botActor, entry.actorId, () => entry.actor, lookup),
+        named('state', entry.fromStateId, () => entry.fromState),
+        named('state', entry.toStateId, () => entry.toState),
+        user(entry.fromAssigneeId, () => entry.fromAssignee),
+        user(entry.toAssigneeId, () => entry.toAssignee),
+        named('project', entry.fromProjectId, () => entry.fromProject),
+        named('project', entry.toProjectId, () => entry.toProject),
+        entry.attachmentId
+          ? lookup(`attachment:${entry.attachmentId}`, () => entry.attachment)
+          : undefined,
+      ]);
+
+    const texts: string[] = [];
+    if (toState) texts.push(fromState ? `moved from ${fromState} to ${toState}` : `moved to ${toState}`);
+    if (toAssignee) {
+      texts.push(fromAssignee ? `reassigned from ${fromAssignee} to ${toAssignee}` : `assigned to ${toAssignee}`);
+    } else if (fromAssignee) {
+      texts.push(`unassigned ${fromAssignee}`);
+    }
+    const labels = (verb: string, list: { name: string }[] | null | undefined) => {
+      if (list?.length) {
+        texts.push(`${verb} label${list.length > 1 ? 's' : ''} ${list.map((l) => l.name).join(', ')}`);
+      }
+    };
+    labels('added', entry.addedLabels);
+    labels('removed', entry.removedLabels);
+    if (entry.toTitle) texts.push(`changed the title to "${truncate(entry.toTitle)}"`);
+    if (entry.toPriority != null) {
+      texts.push(
+        entry.fromPriority != null
+          ? `changed priority from ${priorityName(entry.fromPriority)} to ${priorityName(entry.toPriority)}`
+          : `set priority to ${priorityName(entry.toPriority)}`,
+      );
+    }
+    if (toProject) {
+      texts.push(fromProject ? `moved from project ${fromProject} to ${toProject}` : `added to project ${toProject}`);
+    } else if (fromProject) {
+      texts.push(`removed from project ${fromProject}`);
+    }
+    for (const change of entry.relationChanges ?? []) {
+      const removed = /r$/i.test(change.type) || /remove/i.test(change.type);
+      texts.push(`${removed ? 'removed' : 'added'} a relation to ${change.identifier}`);
+    }
+    if (entry.attachmentId) {
+      texts.push(attachment ? `linked [${truncate(attachment.title)}](${attachment.url})` : 'linked an attachment');
+    }
+    if (entry.updatedDescription) texts.push('updated the description');
+
+    const ts = formatTimestamp(entry.createdAt);
+    return texts.map((text) => `* **${who}** ${text} · ${ts}`);
+  } catch {
+    return [];
+  }
 }
 
 export async function renderActivity(issue: Issue): Promise<string[]> {
