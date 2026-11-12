@@ -88,7 +88,7 @@ linear: TCP-1289
 - Consumes: `Lookup`, `actorName`, `truncate`, `formatTimestamp`, `renderActivity` from Task 1.
 - Produces: `historyLines(entry, lookup)` returning one `* **Actor** <text> · <ts>` line per recognised change, in the spec table's order (status, assignee, labels added, labels removed, title, priority, project, relations, attachment, description). Actor resolved once per entry with `actorName(entry.botActor, entry.actorId, () => entry.actor, lookup)`; lookups keyed `user:<id>`, `state:<id>`, `project:<id>`, `attachment:<id>`. State/project lookup miss → `Unknown`. Priority names: `0 No priority, 1 Urgent, 2 High, 3 Medium, 4 Low`.
 
-- [ ] **Step 1: Write failing tests** (one per event type, through `renderActivity`, asserting the exact text after `* **Adam** ` and before ` · `):
+- [x] **Step 1: Write failing tests** (one per event type, through `renderActivity`, asserting the exact text after `* **Adam** ` and before ` · `):
   - status: `fromStateId:'s1', fromState: Promise.resolve({name:'In Definition'}), toStateId:'s2', toState: Promise.resolve({name:'In Progress'})` → `moved from In Definition to In Progress`; only `to` → `moved to In Progress`.
   - assignee: both → `reassigned from Adam to Jenine`; only to → `assigned to Jenine`; only from → `unassigned Adam`.
   - labels: `addedLabels:[{name:'Autofix'}]` → `added label Autofix`; two → `added labels A, B`; `removedLabels:[{name:'Autofix'}]` → `removed label Autofix`.
@@ -105,14 +105,14 @@ linear: TCP-1289
   - `merges events and comments oldest first`: comments at 10:00, 12:00, events (`updatedDescription:true`) at 11:00, 13:00, passed out of order → lines appear 10, 11, 12, 13.
   - `looks up each user once`: two entries with `actorId:'u1'` whose `actor` is a getter (`Object.defineProperty(entry,'actor',{get: spy})`, spy returns `Promise.resolve({displayName:'Adam'})`) → spy called once in total.
 
-- [ ] **Step 2: Run** `npx vitest run tests/activity.test.ts` — new tests fail.
+- [x] **Step 2: Run** `npx vitest run tests/activity.test.ts` — new tests fail.
 
-- [ ] **Step 3: Implement `historyLines`.** Kick off the actor lookup and all of the entry's value lookups together (`Promise.all`), then build lines. Relation direction: type ends with `r` or contains `remove` (case-insensitive) → removed, else added. `renderActivity` already runs all entries in one `Promise.all`.
+- [x] **Step 3: Implement `historyLines`.** Kick off the actor lookup and all of the entry's value lookups together (`Promise.all`), then build lines. Relation direction: type ends with `r` or contains `remove` (case-insensitive) → removed, else added. `renderActivity` already runs all entries in one `Promise.all`.
 
-- [ ] **Step 4: Run** `make check` — pass.
+- [x] **Step 4: Run** `make check` — pass.
 
-- [ ] **Step 5: Update `CLAUDE.md`:** repo layout gains `activity.ts  Activity section for --detail (history + comments, merged)`; the Output/detail notes say the detail view ends with `## Activity`; Testing conventions say the mock issue also needs `history`, `comments` (connections with `pageInfo`) and `creator`; mention `TZ=UTC` in `vitest.config.mts`. Keep it short.
+- [x] **Step 5: Update `CLAUDE.md`:** repo layout gains `activity.ts  Activity section for --detail (history + comments, merged)`; the Output/detail notes say the detail view ends with `## Activity`; Testing conventions say the mock issue also needs `history`, `comments` (connections with `pageInfo`) and `creator`; mention `TZ=UTC` in `vitest.config.mts`. Keep it short.
 
-- [ ] **Step 6: Run** `make check` and `npm run build` (builds into `dist/workflow/` in a worktree) — both succeed.
+- [x] **Step 6: Run** `make check` and `npm run build` (builds into `dist/workflow/` in a worktree) — both succeed.
 
-- [ ] **Step 7: Commit** `feat: render history events in the Activity section [TCP-1289]`, tick boxes, push.
+- [x] **Step 7: Commit** `feat: render history events in the Activity section [TCP-1289]`, tick boxes, push.
