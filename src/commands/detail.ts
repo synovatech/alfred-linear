@@ -1,4 +1,5 @@
 import { getClient } from '../linear';
+import { renderActivity } from '../activity';
 
 export async function getIssueDetail(identifier: string): Promise<string> {
   const client = await getClient();
@@ -62,6 +63,7 @@ export async function getIssueDetail(identifier: string): Promise<string> {
   }
 
   lines.push('', issue.description?.trim() || '_No description_');
+  lines.push('', ...(await renderActivity(issue)));
 
   return lines.join('\n');
 }
