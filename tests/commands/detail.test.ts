@@ -115,7 +115,7 @@ describe('getIssueDetail', () => {
     expect(md).not.toContain('Attachments');
   });
 
-  it('lists labels comma-separated, alphabetically, with group prefix', async () => {
+  it('lists labels as a nested bullet list, alphabetically, with group prefix', async () => {
     const issue = makeMockIssue({
       labels: vi.fn().mockResolvedValue({
         nodes: [
@@ -129,7 +129,7 @@ describe('getIssueDetail', () => {
       issues: vi.fn().mockResolvedValue({ nodes: [issue] }),
     } as any);
     const md = await getIssueDetail('KIN-1');
-    expect(md).toContain('* **Labels:** Backend, Frontend, Type: Bug');
+    expect(md).toContain('* **Labels:**\n    * Backend\n    * Frontend\n    * Type: Bug\n');
   });
 
   it('falls back to the bare label name when the group lookup fails', async () => {
@@ -145,7 +145,7 @@ describe('getIssueDetail', () => {
       issues: vi.fn().mockResolvedValue({ nodes: [issue] }),
     } as any);
     const md = await getIssueDetail('KIN-1');
-    expect(md).toContain('* **Labels:** Bug, Frontend');
+    expect(md).toContain('* **Labels:**\n    * Bug\n    * Frontend\n');
   });
 
   it('places labels directly after assignee', async () => {
@@ -159,7 +159,7 @@ describe('getIssueDetail', () => {
       issues: vi.fn().mockResolvedValue({ nodes: [issue] }),
     } as any);
     const md = await getIssueDetail('KIN-1');
-    expect(md).toContain('* **Assignee:** Adam Horner\n* **Labels:** Bug\n* **Sub-issues:**');
+    expect(md).toContain('* **Assignee:** Adam Horner\n* **Labels:**\n    * Bug\n* **Sub-issues:**');
   });
 
   it('omits labels line when empty', async () => {
