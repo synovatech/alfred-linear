@@ -19,6 +19,10 @@ function makeMockIssue(overrides: Record<string, unknown> = {}) {
     attachments: vi.fn().mockResolvedValue({ nodes: [] }),
     children: vi.fn().mockResolvedValue({ nodes: [] }),
     labels: vi.fn().mockResolvedValue({ nodes: [] }),
+    creator: Promise.resolve({ displayName: 'Adam Horner' }),
+    creatorId: 'u-adam',
+    history: vi.fn().mockResolvedValue({ nodes: [], pageInfo: { hasNextPage: false } }),
+    comments: vi.fn().mockResolvedValue({ nodes: [], pageInfo: { hasNextPage: false } }),
     ...overrides,
   };
 }
@@ -164,5 +168,35 @@ describe('getIssueDetail', () => {
     } as any);
     const md = await getIssueDetail('KIN-1');
     expect(md).not.toContain('Labels');
+  });
+
+  it('appends the Activity section after the description', async () => {
+    vi.mocked(getClient).mockResolvedValue({
+      issues: vi.fn().mockResolvedValue({ nodes: [makeMockIssue()] }),
+    } as any);
+    const md = await getIssueDetail('KIN-1');
+    expect(md.indexOf('## Activity')).toBeGreaterThan(md.indexOf('JWT token expires'));
+  });
+
+  it('shows Activity unavailable when history fails, keeping the rest of the view', async () => {
+    vi.mocked(getClient).mockResolvedValue({
+      issues: vi.fn().mockResolvedValue({
+        nodes: [makeMockIssue({ history: vi.fn().mockRejectedValue(new Error('boom')) })],
+      }),
+    } as any);
+    const md = await getIssueDetail('KIN-1');
+    expect(md).toContain('JWT token expires');
+    expect(md.endsWith('## Activity\n_Activity unavailable_')).toBe(true);
+  });
+
+  it('shows Activity unavailable when comments fail', async () => {
+    vi.mocked(getClient).mockResolvedValue({
+      issues: vi.fn().mockResolvedValue({
+        nodes: [makeMockIssue({ comments: vi.fn().mockRejectedValue(new Error('boom')) })],
+      }),
+    } as any);
+    const md = await getIssueDetail('KIN-1');
+    expect(md).toContain('JWT token expires');
+    expect(md.endsWith('## Activity\n_Activity unavailable_')).toBe(true);
   });
 });
