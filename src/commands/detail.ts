@@ -48,7 +48,10 @@ export async function getIssueDetail(identifier: string): Promise<string> {
   ];
 
   if (labelNames.length > 0) {
-    lines.push(`* **Labels:** ${labelNames.join(', ')}`);
+    lines.push('* **Labels:**');
+    for (const name of labelNames) {
+      lines.push(`    * ${name}`);
+    }
   }
 
   if (children.length > 0) {
